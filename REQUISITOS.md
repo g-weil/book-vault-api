@@ -52,6 +52,21 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Implementar cadastro (`POST /livros`) e consulta da biblioteca (`GET /livros`) em pequenas etapas, com verificação antes de avançar às demais funcionalidades.
 - Disponibilizar o catálogo para consulta em `GET /generos` para orientar a seleção de IDs no cadastro.
 - Não implementar menu de terminal agora.
+- `POST /livros` retorna HTTP 201 com `mensagem`, `livro` (ID, título, autores, gêneros e status) e `autores_reutilizados` (ID e nome dos autores existentes usados no cadastro).
+- IDs de gêneros inexistentes retornam HTTP 422, com mensagem e lista dos IDs não encontrados. Repetições de gênero ou do mesmo nome normalizado de autor no pedido geram apenas um vínculo.
+- Livro duplicado retorna HTTP 409 com `detail.mensagem` e `detail.livro`, incluindo ID e status atuais. Não altera o livro existente.
+- O cadastro é transacional: autores novos, livro e vínculos são confirmados juntos. Erros desfazem as alterações. No SQLite, os cadastros são serializados com `BEGIN IMMEDIATE` antes da verificação de duplicidade.
+
+## Schemas da primeira etapa
+- `LivroCadastro`: recebe `titulo`, `autores` (lista de nomes, opcional), `genero_ids` (lista obrigatória com pelo menos um inteiro positivo) e `status` obrigatório. O ID do livro é gerado pelo banco; campos normalizados são calculados internamente.
+- O título tem espaços normalizados e não pode ficar vazio. A capitalização é preservada. O status rejeita valores fora das cinco opções com a mensagem definida nas regras de negócio.
+- No cadastro de livro, nomes de autores vazios ou compostos apenas por espaços são desconsiderados. Se não restar nenhum nome, a lógica de cadastro deve vincular `Autor desconhecido`. O schema não cria registros no banco.
+- `AutorCadastro`: define nome obrigatório e não vazio para futuro cadastro direto de autores. Isso não altera a possibilidade de omitir autores no cadastro de livro.
+- `AutorConsulta` e `GeneroConsulta`: retornam ID e nome. Não há schema para cadastrar gêneros, pois o catálogo é fixo.
+- `LivroConsulta`: retorna ID, título, status, autores e gêneros, estes como listas de objetos com ID e nome. Aceita leitura dos atributos de modelos SQLAlchemy.
+- `BibliotecaConsulta`: retorna `mensagem` e `livros`; a lógica de consulta deve produzir `Sua biblioteca está vazia` quando a lista estiver vazia.
+- A existência dos IDs de gêneros, a reutilização de autores, a normalização com `casefold()` para comparação e a detecção de livros duplicados precisam de lógica de cadastro e consulta ao banco; não são garantidas apenas pelos schemas.
+- Estes schemas não implementam endpoints nem operações no banco. Os schemas das demais funcionalidades serão definidos nas respectivas etapas.
 
 ## Exemplo de resposta de consulta
 ```json
@@ -62,7 +77,10 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
     {"id": 1, "nome": "Neil Gaiman"},
     {"id": 2, "nome": "Terry Pratchett"}
   ],
-  "status": "Quero ler"
+  "status": "Quero ler",
+  "generos": [
+    {"id": 1, "nome": "Fantasia"}
+  ]
 }
 ```
 
@@ -70,7 +88,7 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Se a obra terá campos adicionais (ano, ISBN, avaliação, notas); gêneros já foram aprovados como obrigatórios e múltiplos.
 - Estratégia exata de criação/reutilização de autores homônimos.
 - Se haverá histórico geral de mudanças de status e datas de leitura; o histórico detalhado de releituras já está reservado para uma versão futura.
-- Desenho final dos endpoints e schemas de requisição/resposta.
+- Desenho dos endpoints e schemas das funcionalidades posteriores ao cadastro e consulta iniciais.
 - Como tratar versões/edições do mesmo título e usuários múltiplos.
 
 ## Critérios de desenvolvimento
