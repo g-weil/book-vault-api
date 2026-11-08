@@ -57,6 +57,20 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Livro duplicado retorna HTTP 409 com `detail.mensagem` e `detail.livro`, incluindo ID e status atuais. Não altera o livro existente.
 - O cadastro é transacional: autores novos, livro e vínculos são confirmados juntos. Erros desfazem as alterações. No SQLite, os cadastros são serializados com `BEGIN IMMEDIATE` antes da verificação de duplicidade.
 
+## Edição de título, autores e gêneros
+- `PATCH /livros/{livro_id}` recebe os campos opcionais `titulo`, `autores` e `genero_ids`. Campos omitidos preservam os valores atuais; `null` explícito e campos adicionais são rejeitados com HTTP 422. Um objeto vazio não altera o livro e retorna os dados atuais.
+- Título informado deve ser não vazio, preservando a capitalização e normalizando os espaços.
+- Autores informados substituem o conjunto atual, reutilizando os IDs existentes e criando apenas autores novos. Lista vazia ou contendo somente nomes em branco preserva os autores atuais, sem atribuir `Autor desconhecido`. Essa regra é específica da edição; no cadastro, a ausência de autores continua vinculando `Autor desconhecido`.
+- Autores removidos dos vínculos continuam cadastrados. Gêneros enviados substituem o conjunto atual, devem existir no catálogo e conter ao menos um ID; repetições geram um único vínculo.
+- A combinação final de título normalizado e conjunto de autores não pode duplicar outro livro, desconsiderando o próprio registro. Conflito retorna HTTP 409 com os dados do outro livro e desfaz toda a edição.
+- Sucesso retorna HTTP 200 com `LivroConsulta`; livro inexistente retorna HTTP 404. A edição é transacional e preserva o status, que continua sendo alterado pelo endpoint específico. O schema é `LivroEdicao`.
+
+## Alteração do status de leitura
+- `PATCH /livros/{livro_id}/status` recebe apenas `status`, obrigatório entre as cinco opções aprovadas. Campos adicionais são rejeitados com HTTP 422.
+- O ID deve ser um inteiro positivo. Livro inexistente retorna HTTP 404 com `detail` igual a `Livro não encontrado.`; entrada inválida retorna HTTP 422.
+- O sucesso retorna HTTP 200 com os dados de `LivroConsulta` após confirmar a transação. Somente o status é alterado; repetir o status atual também é aceito.
+- `EntradaStatus` reúne a validação compartilhada de status; `LivroCadastro` e `LivroStatusAlteracao` herdam essa validação. Não é criado histórico de leitura nesta etapa.
+
 ## Schemas da primeira etapa
 - `LivroCadastro`: recebe `titulo`, `autores` (lista de nomes, opcional), `genero_ids` (lista obrigatória com pelo menos um inteiro positivo) e `status` obrigatório. O ID do livro é gerado pelo banco; campos normalizados são calculados internamente.
 - O título tem espaços normalizados e não pode ficar vazio. A capitalização é preservada. O status rejeita valores fora das cinco opções com a mensagem definida nas regras de negócio.

@@ -33,7 +33,27 @@ class GeneroConsulta(BaseModel):
     nome: str
 
 
-class LivroCadastro(BaseModel):
+class EntradaStatus(BaseModel):
+    status: StatusLeitura = Field(
+        description="Escolha: Quero ler, Lendo, Lido, Relendo ou Abandonado."
+    )
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validar_status(cls, status: object) -> object:
+        if status not in [opcao.value for opcao in StatusLeitura]:
+            raise ValueError(
+                "Status inválido: essa opção não existe. Escolha uma das opções: "
+                "Quero ler, Lendo, Lido, Relendo ou Abandonado."
+            )
+        return status
+
+
+class LivroStatusAlteracao(EntradaStatus):
+    model_config = ConfigDict(extra="forbid")
+
+
+class LivroCadastro(EntradaStatus):
     titulo: str = Field(min_length=1)
     autores: list[str] = Field(
         default_factory=list,
@@ -45,9 +65,6 @@ class LivroCadastro(BaseModel):
     genero_ids: list[IdPositivo] = Field(
         min_length=1,
         description="Escolha pelo menos um ID do catálogo retornado por GET /generos.",
-    )
-    status: StatusLeitura = Field(
-        description="Escolha: Quero ler, Lendo, Lido, Relendo ou Abandonado."
     )
 
     @field_validator("titulo")
@@ -64,15 +81,32 @@ class LivroCadastro(BaseModel):
         # Nomes vazios não representam autores. Preservamos os demais para exibição.
         return [nome for nome in autores if nome.strip()]
 
-    @field_validator("status", mode="before")
+class LivroEdicao(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    titulo: str | None = Field(default=None, min_length=1)
+    autores: list[str] | None = Field(
+        default=None,
+        description="Substitui os autores. Omitir ou enviar lista vazia/nomes em branco preserva os atuais.",
+    )
+    genero_ids: list[IdPositivo] | None = Field(default=None, min_length=1)
+
+    @field_validator("titulo", "autores", "genero_ids", mode="before")
     @classmethod
-    def validar_status(cls, status: object) -> object:
-        if status not in [opcao.value for opcao in StatusLeitura]:
-            raise ValueError(
-                "Status inválido: essa opção não existe. Escolha uma das opções: "
-                "Quero ler, Lendo, Lido, Relendo ou Abandonado."
-            )
-        return status
+    def rejeitar_nulo(cls, valor: object) -> object:
+        if valor is None:
+            raise ValueError("Omita o campo para preservar o valor atual; null não é permitido.")
+        return valor
+
+    @field_validator("titulo")
+    @classmethod
+    def validar_titulo(cls, titulo: str) -> str:
+        return LivroCadastro.validar_titulo(titulo)
+
+    @field_validator("autores")
+    @classmethod
+    def preparar_autores(cls, autores: list[str]) -> list[str]:
+        return LivroCadastro.preparar_autores(autores)
 
 
 class LivroConsulta(BaseModel):
