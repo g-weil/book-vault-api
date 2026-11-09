@@ -57,6 +57,28 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Livro duplicado retorna HTTP 409 com `detail.mensagem` e `detail.livro`, incluindo ID e status atuais. Não altera o livro existente.
 - O cadastro é transacional: autores novos, livro e vínculos são confirmados juntos. Erros desfazem as alterações. No SQLite, os cadastros são serializados com `BEGIN IMMEDIATE` antes da verificação de duplicidade.
 
+## Consulta de autores e busca de livros por autor
+- `GET /autores` retorna HTTP 200 com uma lista de objetos `AutorConsulta` (ID e nome), ordenados por ID, incluindo autores sem livros e `Autor desconhecido` caso cadastrado.
+- O parâmetro opcional `nome` permite busca parcial pelo nome normalizado, sem diferenciar maiúsculas/minúsculas e normalizando espaços com `casefold()`. Caracteres como `%` e `_` são tratados como texto literal. Não há remoção de acentos.
+- Sem filtro, listar todos os autores. Sem resultados, retornar HTTP 200 com `[]`. Filtro enviado vazio ou somente com espaços retorna HTTP 422; para listar todos, omitir o parâmetro.
+- `GET /livros` aceita `autor_id` (inteiro positivo) ou `autor_nome` (busca parcial com as mesmas regras de normalização e caracteres literais de `GET /autores`). Enviar ambos, ID inválido ou nome vazio/somente espaços retorna HTTP 422.
+- Sem livros para o filtro, retornar HTTP 200, lista vazia e a mensagem `Nenhum livro encontrado para esse autor`, inclusive para ID de autor inexistente. Sem filtro, preservar a consulta geral da biblioteca e sua mensagem de biblioteca vazia.
+- Cada livro aparece uma única vez, mesmo quando vários de seus autores correspondem ao trecho pesquisado. A resposta inclui todos os autores e gêneros de cada livro encontrado, não apenas os autores que corresponderam ao filtro.
+- O menu/frontend pode reunir listagem e busca em uma só interação: digitar parte do nome, selecionar um autor encontrado e consultar seus livros pelo ID.
+
+## Exclusão de livros
+- `DELETE /livros/{livro_id}` exclui definitivamente o livro e seus vínculos em `livros_autores` e `livros_generos`, em uma única transação.
+- Os autores e gêneros continuam cadastrados, mesmo que fiquem sem livros; vínculos de outros livros são preservados.
+- Sucesso retorna HTTP 204 sem corpo. Livro inexistente, inclusive após já ter sido excluído, retorna HTTP 404 com `Livro não encontrado.`. ID não positivo ou inválido retorna HTTP 422.
+- A confirmação da exclusão será responsabilidade do futuro menu/frontend; o endpoint executa a exclusão ao receber a requisição válida.
+
+## Gerenciamento de autores
+- `POST /autores` recebe `nome` obrigatório e não vazio. Retorna HTTP 201 com ID e nome; se o nome normalizado já existir, retorna HTTP 409 com mensagem e os dados do autor existente em `detail.autor`.
+- `PATCH /autores/{autor_id}` recebe `nome` obrigatório, corrige o registro mantendo seu ID e retorna HTTP 200. A correção aparece em todos os livros vinculados. Nome normalizado pertencente a outro autor retorna HTTP 409; não há união automática de registros. Manter o próprio nome ou corrigir sua capitalização é permitido.
+- `DELETE /autores/{autor_id}` exclui apenas autor sem livros vinculados. Sucesso retorna HTTP 204 sem corpo; se houver vínculo, retorna HTTP 409 e preserva autor, livros e vínculos.
+- Edição e exclusão de autor inexistente retornam HTTP 404. IDs não positivos, nomes vazios, campos ausentes ou adicionais retornam HTTP 422.
+- `AutorCadastro` e `AutorEdicao` compartilham validação de nome, preservando o texto enviado para exibição e usando normalização de espaços e `casefold()` na comparação. As operações são transacionais.
+
 ## Edição de título, autores e gêneros
 - `PATCH /livros/{livro_id}` recebe os campos opcionais `titulo`, `autores` e `genero_ids`. Campos omitidos preservam os valores atuais; `null` explícito e campos adicionais são rejeitados com HTTP 422. Um objeto vazio não altera o livro e retorna os dados atuais.
 - Título informado deve ser não vazio, preservando a capitalização e normalizando os espaços.
@@ -75,7 +97,7 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - `LivroCadastro`: recebe `titulo`, `autores` (lista de nomes, opcional), `genero_ids` (lista obrigatória com pelo menos um inteiro positivo) e `status` obrigatório. O ID do livro é gerado pelo banco; campos normalizados são calculados internamente.
 - O título tem espaços normalizados e não pode ficar vazio. A capitalização é preservada. O status rejeita valores fora das cinco opções com a mensagem definida nas regras de negócio.
 - No cadastro de livro, nomes de autores vazios ou compostos apenas por espaços são desconsiderados. Se não restar nenhum nome, a lógica de cadastro deve vincular `Autor desconhecido`. O schema não cria registros no banco.
-- `AutorCadastro`: define nome obrigatório e não vazio para futuro cadastro direto de autores. Isso não altera a possibilidade de omitir autores no cadastro de livro.
+- `AutorCadastro`: define nome obrigatório e não vazio para cadastro direto de autores. `AutorEdicao` herda essa validação. Isso não altera a possibilidade de omitir autores no cadastro de livro.
 - `AutorConsulta` e `GeneroConsulta`: retornam ID e nome. Não há schema para cadastrar gêneros, pois o catálogo é fixo.
 - `LivroConsulta`: retorna ID, título, status, autores e gêneros, estes como listas de objetos com ID e nome. Aceita leitura dos atributos de modelos SQLAlchemy.
 - `BibliotecaConsulta`: retorna `mensagem` e `livros`; a lógica de consulta deve produzir `Sua biblioteca está vazia` quando a lista estiver vazia.

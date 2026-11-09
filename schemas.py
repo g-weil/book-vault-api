@@ -9,6 +9,8 @@ IdPositivo = Annotated[int, Field(strict=True, gt=0)]
 
 
 class AutorCadastro(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nome: str = Field(min_length=1)
 
     @field_validator("nome")
@@ -17,6 +19,10 @@ class AutorCadastro(BaseModel):
         if not nome.strip():
             raise ValueError("O nome do autor não pode estar vazio.")
         return nome
+
+
+class AutorEdicao(AutorCadastro):
+    pass
 
 
 class AutorConsulta(BaseModel):
