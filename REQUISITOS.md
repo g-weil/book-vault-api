@@ -51,7 +51,7 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 ## Primeira etapa da API
 - Implementar cadastro (`POST /livros`) e consulta da biblioteca (`GET /livros`) em pequenas etapas, com verificação antes de avançar às demais funcionalidades.
 - Disponibilizar o catálogo para consulta em `GET /generos` para orientar a seleção de IDs no cadastro.
-- Não implementar menu de terminal agora.
+- A primeira etapa foi concluída e integrada à main; o menu de terminal passa a consumir esses endpoints na etapa seguinte.
 - `POST /livros` retorna HTTP 201 com `mensagem`, `livro` (ID, título, autores, gêneros e status) e `autores_reutilizados` (ID e nome dos autores existentes usados no cadastro).
 - IDs de gêneros inexistentes retornam HTTP 422, com mensagem e lista dos IDs não encontrados. Repetições de gênero ou do mesmo nome normalizado de autor no pedido geram apenas um vínculo.
 - Livro duplicado retorna HTTP 409 com `detail.mensagem` e `detail.livro`, incluindo ID e status atuais. Não altera o livro existente.
@@ -119,6 +119,16 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
   ]
 }
 ```
+
+## Menu de terminal
+- `menu.py` é um cliente HTTP da API em `http://127.0.0.1:8000`, utilizando a biblioteca padrão do Python. Não acessa o SQLite diretamente. O servidor deve ser iniciado em outro terminal.
+- Opções: 1 cadastrar livro; 2 consultar biblioteca; 3 buscar livros por autor; 4 alterar status; 5 gerenciar autores; 6 excluir livro; 7 editar título/autores/gêneros; 0 sair.
+- O cadastro exibe o catálogo antes de pedir os IDs de gêneros e as cinco opções antes de escolher o status. Vários autores são separados por ponto e vírgula; gêneros por vírgula. Autor em branco é enviado como lista vazia, para a API atribuir Autor desconhecido.
+- Ao receber livro duplicado, mostrar o livro existente e perguntar se deseja alterar seu status, realizando o PATCH apenas após confirmação e escolha do status.
+- A busca por autor recebe parte do nome, mostra os autores encontrados e permite selecionar o ID para consultar os livros. Campo de busca vazio lista todos os autores.
+- Na edição de livro, entradas em branco preservam os valores; listas preenchidas substituem os vínculos atuais. Alterações e exclusões têm confirmação. Gêneros continuam obrigatórios; não é possível remover todos.
+- Gerenciamento de autores oferece consulta, cadastro, edição de nome e exclusão. O menu informa que renomear afeta todos os livros e exibe as recusas da API, incluindo exclusão de autor com vínculos.
+- `0` volta nas seleções de ID/status ou cancela a seleção de gêneros. Falhas de conexão e erros da API devem ser apresentados em texto, sem encerrar o menu nem repetir automaticamente operações de escrita.
 
 ## Decisões ainda em aberto
 - Se a obra terá campos adicionais (ano, ISBN, avaliação, notas); gêneros já foram aprovados como obrigatórios e múltiplos.
