@@ -1,7 +1,8 @@
 from pathlib import Path
+from collections.abc import Iterator
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 class Base(DeclarativeBase):
@@ -21,3 +22,8 @@ def habilitar_chaves_estrangeiras(connection, _):
 
 
 SessionLocal = sessionmaker(bind=engine)
+
+
+def obter_sessao() -> Iterator[Session]:
+    with SessionLocal() as session:
+        yield session
