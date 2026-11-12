@@ -1,0 +1,21 @@
+services:
+  book-vault:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8000}:8000"
+    environment:
+      BOOK_VAULT_DB_PATH: /data/book_vault.db
+    volumes:
+      - book-vault-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  book-vault-data:
