@@ -24,6 +24,17 @@ def habilitar_chaves_estrangeiras(connection, _):
 SessionLocal = sessionmaker(bind=engine)
 
 
+def preparar_banco() -> None:
+    Base.metadata.create_all(bind=engine)
+    # create_all não altera tabelas existentes. Esta mudança apenas acrescenta
+    # uma coluna opcional; livros antigos continuam salvos com capa_url = NULL.
+    with engine.begin() as connection:
+        connection.exec_driver_sql("BEGIN IMMEDIATE")
+        colunas = {linha[1] for linha in connection.exec_driver_sql("PRAGMA table_info(livros)")}
+        if "capa_url" not in colunas:
+            connection.exec_driver_sql("ALTER TABLE livros ADD COLUMN capa_url VARCHAR")
+
+
 def obter_sessao() -> Iterator[Session]:
     with SessionLocal() as session:
         yield session

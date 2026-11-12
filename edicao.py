@@ -73,6 +73,8 @@ def editar_livro(livro_id: int, dados: LivroEdicao, session: Session) -> LivroCo
 
         livro.titulo = titulo
         livro.titulo_normalizado = titulo_normalizado
+        if "capa_url" in campos:
+            livro.capa_url = dados.capa_url
         if generos is not None:
             livro.generos = generos
         session.flush()

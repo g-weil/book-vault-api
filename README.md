@@ -18,6 +18,23 @@ Inicie a API no primeiro terminal:
 
 Documentação interativa: http://127.0.0.1:8000/docs
 
+Frontend web (primeira etapa): http://127.0.0.1:8000/
+
+A página usa HTML, CSS e JavaScript puro e o mesmo servidor da API; não é preciso
+instalar Node.js nem iniciar um segundo servidor para a interface web. Nesta etapa,
+exibe livros em cards e permite cadastrar, editar título/autores/gêneros/capa,
+atualizar o status e excluir com confirmação em modais. A barra lateral também
+abre a área Autores, com listagem de nomes/IDs, busca parcial, cadastro, edição e
+exclusão com confirmação. Autores com livros vinculados têm a exclusão bloqueada.
+A biblioteca permite buscar por título enquanto digita, selecionar volumes nas
+sugestões e combinar título, autor e status. Os filtros podem ser limpos separadamente.
+O restante dos
+formulários será integrado progressivamente.
+
+O campo de capa aceita endereço HTTP/HTTPS de imagem e é opcional. Se estiver vazio
+ou a imagem falhar, aparece uma capa padrão. O banco guarda o link, não a imagem.
+Livros já cadastrados são preservados ao adicionar essa coluna na inicialização.
+
 Em um segundo terminal, na mesma pasta, inicie o menu:
 
 ```powershell
@@ -34,7 +51,7 @@ nas seleções ou sair do menu principal. Exclusões são definitivas e exigem c
 As regras de negócio estão em REQUISITOS.md. O banco local e o ambiente virtual
 não são versionados; as tabelas e o catálogo são criados na inicialização da API.
 
-## Testes do menu
+## Testes
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
@@ -42,3 +59,7 @@ não são versionados; as tabelas e o catálogo são criados na inicialização 
 
 Os testes iniciam uma API em porta temporária e usam SQLite em memória, sem alterar
 a biblioteca local. Simulam as entradas do terminal e fazem requisições HTTP reais.
+
+Se Node.js estiver disponível, a suíte também verifica os eventos do cadastro web
+com um DOM simplificado e HTTP real para a API temporária. Esse teste não substitui
+a revisão visual e de interação em um navegador. Node.js não é necessário para usar o frontend.

@@ -115,6 +115,9 @@ def cadastrar_livro(api: ClienteAPI) -> None:
             raise
         existente = erro.detalhe["livro"]
         mostrar_livro(existente)
+        if existente["status"] == status:
+            print("Este livro já está cadastrado e já possui esse mesmo status.")
+            return
         if confirmar("Este livro já está cadastrado. Deseja alterar o status?"):
             alterar_status(api, existente)
         return

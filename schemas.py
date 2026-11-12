@@ -1,11 +1,25 @@
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, HttpUrl, TypeAdapter, field_validator
 
 from models import StatusLeitura
 
 
 IdPositivo = Annotated[int, Field(strict=True, gt=0)]
+
+
+def validar_capa_url(valor):
+    if valor is None:
+        return None
+    if not isinstance(valor, str):
+        raise ValueError("Informe uma URL http/https para a capa.")
+    valor = valor.strip()
+    if not valor:
+        return None
+    return str(TypeAdapter(HttpUrl).validate_python(valor))
+
+
+CapaURL = Annotated[str | None, BeforeValidator(validar_capa_url)]
 
 
 class AutorCadastro(BaseModel):
@@ -60,6 +74,7 @@ class LivroStatusAlteracao(EntradaStatus):
 
 
 class LivroCadastro(EntradaStatus):
+    capa_url: CapaURL = Field(default=None, description="URL http/https da imagem da capa; opcional.")
     titulo: str = Field(min_length=1)
     autores: list[str] = Field(
         default_factory=list,
@@ -89,6 +104,8 @@ class LivroCadastro(EntradaStatus):
 
 class LivroEdicao(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    capa_url: CapaURL = Field(default=None, description="Omita para manter; vazio ou null remove a capa.")
 
     titulo: str | None = Field(default=None, min_length=1)
     autores: list[str] | None = Field(
@@ -120,6 +137,7 @@ class LivroConsulta(BaseModel):
 
     id: int
     titulo: str
+    capa_url: str | None = None
     autores: list[AutorConsulta]
     generos: list[GeneroConsulta]
     status: StatusLeitura

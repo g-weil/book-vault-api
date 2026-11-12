@@ -3,8 +3,11 @@ import socket
 import threading
 import time
 import unittest
+import shutil
+import subprocess
 from contextlib import redirect_stdout
 from unittest.mock import patch
+from urllib.request import urlopen
 
 import uvicorn
 from sqlalchemy import create_engine, event
@@ -91,6 +94,18 @@ class TestMenu(unittest.TestCase):
         self.interagir(menu.cadastrar_livro, ["O Hobbit", "Tolkien", "1", "3", "s", "4"])
         self.assertEqual(self.api.requisitar("GET", "/livros")["livros"][0]["status"], "Relendo")
 
+    def test_duplicidade_com_mesmo_status_nao_oferece_alteracao(self):
+        self.cadastrar()
+        saida = self.interagir(menu.cadastrar_livro, ["O Hobbit", "Tolkien", "1", "1"])
+        self.assertIn("já possui esse mesmo status", saida)
+        with self.assertRaises(ErroAPI) as erro:
+            self.cadastrar()
+        self.assertEqual(erro.exception.codigo, 409)
+        self.assertIn("já possui esse mesmo status", str(erro.exception))
+        livros = self.api.requisitar("GET", "/livros")["livros"]
+        self.assertEqual(len(livros), 1)
+        self.assertEqual(livros[0]["status"], "Quero ler")
+
     def test_busca_nome_parcial_e_selecao_por_id(self):
         livro = self.cadastrar(autores=["José Saramago"])
         self.cadastrar("Outro livro", ["Outro autor"])
@@ -140,6 +155,65 @@ class TestMenu(unittest.TestCase):
         self.assertIn("Opção inválida", saida)
         self.assertIn("Sua biblioteca está vazia", saida)
         self.assertIn("Até a próxima", saida)
+
+    def test_busca_titulo_parcial_e_combinacao_com_autor(self):
+        primeiro = self.cadastrar("Saga Volume 1", ["Autor A"])
+        self.cadastrar("Saga Volume 2", ["Autor A"])
+        self.cadastrar("Saga Volume 1", ["Autor B"])
+        self.cadastrar("100% Outro", ["Autor B"])
+        resultado = self.api.requisitar("GET", "/livros", parametros={"titulo": "  SAGA   VOLUME "})
+        self.assertEqual(len(resultado["livros"]), 3)
+        resultado = self.api.requisitar("GET", "/livros", parametros={
+            "titulo": "saga", "autor_id": primeiro["autores"][0]["id"],
+        })
+        self.assertEqual(len(resultado["livros"]), 2)
+        resultado = self.api.requisitar("GET", "/livros", parametros={"titulo": "%"})
+        self.assertEqual([livro["titulo"] for livro in resultado["livros"]], ["100% Outro"])
+        resultado = self.api.requisitar("GET", "/livros", parametros={"titulo": "inexistente"})
+        self.assertEqual(resultado["livros"], [])
+        for titulo in ("", "   "):
+            with self.assertRaises(ErroAPI) as erro:
+                self.api.requisitar("GET", "/livros", parametros={"titulo": titulo})
+            self.assertEqual(erro.exception.codigo, 422)
+
+    def test_capa_opcional_validacao_edicao_e_remocao(self):
+        livro = self.cadastrar()
+        self.assertIsNone(livro["capa_url"])
+        caminho = f"/livros/{livro['id']}"
+        capa = "https://example.com/capa.jpg"
+        atualizado = self.api.requisitar("PATCH", caminho, {"capa_url": capa})
+        self.assertEqual(atualizado["capa_url"], capa)
+        atualizado = self.api.requisitar("PATCH", caminho, {"titulo": "Título corrigido"})
+        self.assertEqual(atualizado["capa_url"], capa)
+        for invalida in ("javascript:alert(1)", "file:///capa.jpg", "não é uma URL", 123):
+            with self.assertRaises(ErroAPI) as erro:
+                self.api.requisitar("PATCH", caminho, {"capa_url": invalida})
+            self.assertEqual(erro.exception.codigo, 422)
+        for vazia in ("", None):
+            atualizado = self.api.requisitar("PATCH", caminho, {"capa_url": vazia})
+            self.assertIsNone(atualizado["capa_url"])
+        resposta = self.api.requisitar("POST", "/livros", {
+            "titulo": "Livro com capa", "autores": [], "genero_ids": [1],
+            "status": "Lendo", "capa_url": capa,
+        })
+        self.assertEqual(resposta["livro"]["capa_url"], capa)
+
+    def test_pagina_e_arquivos_estaticos(self):
+        for caminho, tipo in (("/", "text/html"), ("/static/styles.css", "text/css"),
+                              ("/static/app.js", "javascript"), ("/static/livro.svg", "image/svg+xml")):
+            with urlopen(self.api.endereco + caminho) as resposta:
+                self.assertEqual(resposta.status, 200)
+                self.assertIn(tipo, resposta.headers["Content-Type"])
+                self.assertEqual(resposta.headers["Cache-Control"], "no-cache")
+                self.assertTrue(resposta.read())
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js não instalado; necessário apenas para este teste de JavaScript.")
+    def test_cadastro_frontend_eventos_e_http_real(self):
+        resultado = subprocess.run(
+            [shutil.which("node"), "tests/frontend_cadastro.cjs", self.api.endereco],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
+        )
+        self.assertEqual(resultado.returncode, 0, resultado.stdout + resultado.stderr)
 
 
 if __name__ == "__main__":

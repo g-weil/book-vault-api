@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path as Caminho
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -9,7 +12,7 @@ import models  # Registra as tabelas em Base.metadata antes de criá-las.
 from catalogo import carregar_generos
 from cadastro import cadastrar_livro, normalizar
 from autores import cadastrar_autor, editar_autor, excluir_autor
-from database import Base, SessionLocal, engine, obter_sessao
+from database import Base, SessionLocal, engine, obter_sessao, preparar_banco
 from edicao import editar_livro
 from schemas import (
     AutorCadastro,
@@ -27,13 +30,30 @@ from schemas import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    preparar_banco()
     with SessionLocal.begin() as session:
         carregar_generos(session)
     yield
 
 
 app = FastAPI(title="Book Vault API", lifespan=lifespan)
+
+FRONTEND = Caminho(__file__).resolve().parent / "frontend"
+app.mount("/static", StaticFiles(directory=FRONTEND), name="static")
+
+
+@app.middleware("http")
+async def revalidar_frontend(request, call_next):
+    resposta = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        # Revalida os arquivos a cada acesso durante o desenvolvimento local.
+        resposta.headers["Cache-Control"] = "no-cache"
+    return resposta
+
+
+@app.get("/", include_in_schema=False)
+def pagina_biblioteca():
+    return FileResponse(FRONTEND / "index.html")
 
 
 @app.post(
@@ -171,6 +191,7 @@ def listar_livros(
     autor_nome: Annotated[
         str | None, Query(min_length=1, description="Parte do nome do autor; use apenas um filtro.")
     ] = None,
+    titulo: Annotated[str | None, Query(min_length=1, description="Parte do título; pode combinar com autor.")] = None,
 ):
     if autor_id is not None and autor_nome is not None:
         raise HTTPException(status_code=422, detail="Escolha apenas um filtro: autor_id ou autor_nome.")
@@ -193,9 +214,17 @@ def listar_livros(
             models.Livro.autores.any(models.Autor.nome_normalizado.contains(termo, autoescape=True))
         )
 
+    if titulo is not None:
+        termo_titulo = normalizar(titulo)
+        if not termo_titulo:
+            raise HTTPException(status_code=422, detail="Informe parte do título ou omita o filtro.")
+        consulta = consulta.where(models.Livro.titulo_normalizado.contains(termo_titulo, autoescape=True))
+
     livros = session.scalars(consulta).all()
     if livros:
         mensagem = "Biblioteca consultada com sucesso"
+    elif titulo is not None:
+        mensagem = "Nenhum livro encontrado para os filtros informados"
     elif autor_id is not None or autor_nome is not None:
         mensagem = "Nenhum livro encontrado para esse autor"
     else:
