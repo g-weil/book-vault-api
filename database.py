@@ -1,5 +1,6 @@
 from pathlib import Path
 from collections.abc import Iterator
+import os
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -9,7 +10,10 @@ class Base(DeclarativeBase):
     pass
 
 
-DATABASE_PATH = Path(__file__).resolve().parent / "book_vault.db"
+DATABASE_PATH = Path(
+    os.environ.get("BOOK_VAULT_DB_PATH", str(Path(__file__).resolve().parent / "book_vault.db"))
+).expanduser().resolve()
+DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 engine = create_engine(
     f"sqlite:///{DATABASE_PATH.as_posix()}",
     connect_args={"check_same_thread": False},

@@ -165,6 +165,13 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - `Limpar título` remove apenas título/seleção de livro, preservando autor e status. Limpar autor também preserva o título. Buscas por título sem resultados retornam HTTP 200 com lista vazia e a interface explica os filtros. Novos cadastros limpam todos os filtros e recarregam os livros se antes havia filtro de autor ou título.
 - Na biblioteca, as buscas de título e autor não têm botões de buscar: as sugestões são automáticas ao digitar, e Enter executa imediatamente. Manter rótulos, mensagens de carregamento/erro, botões de limpar e seleção de sugestões por teclado. Essa mudança não remove o botão Buscar da área de gerenciamento de autores.
 
+## Execução em VPS com Docker
+- Dockerfile com Python 3.12, API e frontend no mesmo contêiner, um processo Uvicorn sem reload e usuário sem privilégios de root.
+- `BOOK_VAULT_DB_PATH` permite configurar o arquivo SQLite; sem a variável, preservar o caminho local anterior. No Docker, usar `/data/book_vault.db` em volume persistente gerenciado pelo Compose.
+- Não copiar banco local, ambiente virtual, credenciais ou testes para a imagem. O primeiro início usa banco novo e carrega os gêneros. A importação de dados locais é uma etapa separada.
+- Porta publicada somente em 127.0.0.1 por padrão. Acesso inicial por túnel SSH ou proxy com controle de acesso, pois a API atual não tem autenticação. Publicação, domínio e importação não são executados nesta preparação.
+- Incluir healthcheck, reinício após encerramento do processo, rotação de logs e instruções de atualização, parada e backup consistente do SQLite em `docs/DEPLOY_VPS.md`.
+
 ## Decisões ainda em aberto
 - Se a obra terá campos adicionais (ano, ISBN, avaliação, notas); gêneros já foram aprovados como obrigatórios e múltiplos.
 - Estratégia exata de criação/reutilização de autores homônimos.

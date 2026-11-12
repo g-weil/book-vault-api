@@ -51,6 +51,15 @@ nas seleções ou sair do menu principal. Exclusões são definitivas e exigem c
 As regras de negócio estão em REQUISITOS.md. O banco local e o ambiente virtual
 não são versionados; as tabelas e o catálogo são criados na inicialização da API.
 
+## Docker e VPS
+
+Com Docker e Compose instalados, execute `docker compose up -d --build`.
+A API e o frontend ficam no mesmo contêiner; os dados SQLite persistem em volume.
+Por padrão a porta fica restrita ao acesso local da máquina hospedeira.
+
+Veja [o guia da VPS](docs/DEPLOY_VPS.md) para acesso por SSH, atualizações e backups.
+O banco local não é enviado automaticamente para o contêiner.
+
 ## Testes
 
 ```powershell
