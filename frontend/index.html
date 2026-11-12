@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Minha biblioteca · Book Vault</title>
+  <link rel="icon" href="/static/livro.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css?v=9">
+  <script src="/static/app.js?v=10" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Book Vault, início"><img src="/static/livro.svg" alt="" width="34" height="34"><span>book<span class="brand-light">vault</span><small>SUA BIBLIOTECA PARTICULAR</small></span></a>
+    <p class="nav-label">MEU ESPAÇO</p>
+    <nav class="main-nav" aria-label="Principal">
+      <button id="nav-biblioteca" type="button" class="nav-item nav-active" aria-current="page" aria-controls="area-biblioteca"><span aria-hidden="true">▤</span> Biblioteca</button>
+      <button id="nav-autores" type="button" class="nav-item" aria-controls="area-autores"><span aria-hidden="true">✎</span> Autores</button>
+    </nav>
+    <div class="sidebar-note"><span class="note-line"></span><p>Um lugar para guardar<br>suas próximas histórias.</p><small>LIVRO POR LIVRO.</small></div>
+    <div class="sidebar-footer"><span class="online-dot"></span> Biblioteca pessoal <span>01</span></div>
+  </aside>
+
+  <main>
+    <header class="topbar"><span>MEU ACERVO <span class="separator">/</span> <span id="secao-atual" class="topbar-current">Biblioteca</span></span><span class="edition">BOOK VAULT · VOL. 01</span></header>
+    <section class="intro" aria-labelledby="titulo-pagina">
+      <h1 id="titulo-pagina" class="intro-quote">Quem disse que não existe viagem no tempo? Ler é a passagem para o passado, o mergulho no presente e a antecipação do futuro.</h1>
+    </section>
+
+    <section id="area-biblioteca" aria-labelledby="titulo-acervo">
+      <div class="collection-heading"><div><h2 id="titulo-acervo">Sua estante <span id="quantidade" class="count">—</span></h2><p>Seu próximo capítulo começa aqui.</p></div><div class="collection-actions"><button id="atualizar" class="button-secondary" type="button"><span aria-hidden="true">↻</span> Atualizar</button><button id="novo-livro" class="button-primary" type="button">+ Cadastrar livro</button></div></div>
+      <p id="notificacao" class="notification" role="status" aria-live="polite" hidden></p>
+      <form id="busca-livros-titulo" class="author-search library-title-search" role="search" aria-label="Buscar livros por título">
+        <div class="author-search-field"><label for="livros-titulo">Buscar livros por título</label><input id="livros-titulo" type="search" autocomplete="off" enterkeyhint="search" placeholder="Digite parte do título para encontrar os volumes" aria-describedby="mensagem-busca-titulo" aria-controls="sugestoes-titulos"></div>
+        <button id="limpar-titulo-livros" type="button" class="button-secondary">Limpar título</button>
+      </form>
+      <p id="mensagem-busca-titulo" class="field-help" role="status" aria-live="polite"></p>
+      <ul id="sugestoes-titulos" class="author-suggestions" aria-label="Volumes encontrados, selecione para ver um livro específico" hidden></ul>
+      <p id="titulo-filtro-atual" class="active-author-filter" hidden></p>
+      <form id="busca-livros-autor" class="author-search library-author-search" role="search" aria-label="Buscar livros por autor">
+        <div class="author-search-field"><label for="livros-autor-nome">Buscar livros por autor</label><input id="livros-autor-nome" type="search" autocomplete="off" enterkeyhint="search" placeholder="Digite parte do nome e escolha uma sugestão" aria-describedby="mensagem-busca-livros" aria-controls="sugestoes-autores"></div>
+        <button id="limpar-autor-livros" type="button" class="button-secondary">Limpar busca</button>
+      </form>
+      <p id="mensagem-busca-livros" class="field-help" role="status" aria-live="polite"></p>
+      <ul id="sugestoes-autores" class="author-suggestions" aria-label="Autores encontrados, selecione para consultar os livros" hidden></ul>
+      <p id="autor-filtro-atual" class="active-author-filter" hidden></p>
+      <div class="toolbar"><label for="filtro-status">EXIBIR</label><select id="filtro-status"><option value="">Todas as leituras</option>Quero ler</option><option>Lendo</option><option>Lido</option><option>Relendo</option><option>Abandonado</option></select><span class="toolbar-caption">Uma coleção de mundos, feita por você.</span></div>
+      <p id="mensagem" class="feedback" role="status" aria-live="polite">Abrindo sua biblioteca…</p>
+      <div id="estante" class="book-grid" aria-busy="true"></div>
+    </section>
+    <section id="area-autores" aria-labelledby="titulo-autores" hidden>
+      <div class="collection-heading"><div><h2 id="titulo-autores" tabindex="-1">Quem escreve suas histórias <span id="quantidade-autores" class="count">—</span></h2><p>Os nomes por trás dos seus livros.</p></div><div class="collection-actions"><button id="atualizar-autores" type="button" class="button-secondary">↻ Atualizar</button><button id="novo-autor" type="button" class="button-primary">+ Cadastrar autor</button></div></div>
+      <p id="notificacao-autores" class="notification" role="status" aria-live="polite" hidden></p>
+      <form id="busca-autores" class="author-search" role="search" aria-label="Buscar autores">
+        <div class="author-search-field"><label for="nome-autor">Nome do autor</label><input id="nome-autor" name="nome" type="search" placeholder="Digite parte do nome, como Tolkien" aria-describedby="ajuda-busca-autores"></div>
+        <button id="buscar-autores" type="submit" class="button-primary">Buscar</button>
+        <button id="limpar-busca-autores" type="button" class="button-secondary">Mostrar todos</button>
+      </form>
+      <p id="ajuda-busca-autores" class="field-help">Busque por parte do nome ou deixe em branco para listar todos. Autores sem livros vinculados também aparecem aqui.</p>
+      <p id="mensagem-autores" class="feedback" role="status" aria-live="polite"></p>
+      <div class="author-table-wrap"><table id="tabela-autores" class="author-table" hidden><caption class="sr-only">Autores encontrados</caption><thead><tr><th scope="col">ID</th><th scope="col">Nome do autor</th><th scope="col">Ações</th></tr></thead><tbody id="lista-autores" aria-busy="false"></tbody></table></div>
+    </section>
+    <footer class="page-footer"><span>Feito para quem ama se perder em um livro.</span><span>BOOK VAULT</span></footer>
+  </main>
+
+  <!-- Um template é uma estrutura que o JavaScript copia para cada livro. -->
+  <template id="modelo-card">
+    <article class="book-card">
+      <div class="cover-area">
+        <div class="cover-placeholder"><img src="/static/livro.svg" alt="" width="42" height="42"><span class="placeholder-title"></span><small>UM MUNDO A DESCOBRIR</small></div>
+        <img class="cover-image" alt="" hidden referrerpolicy="no-referrer"><span class="status-badge"></span>
+      </div>
+      <div class="book-details">
+        <h3></h3><p class="book-authors"></p><div class="genres"></div>
+        <div class="book-actions">
+          <button type="button" class="edit-button">Editar livro <span aria-hidden="true">↗</span></button>
+          <button type="button" class="status-button">Atualizar status</button>
+          <button type="button" class="cover-button">Editar capa</button>
+          <button type="button" class="delete-button">Excluir livro</button>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <dialog id="modal-capa" aria-labelledby="titulo-modal"><form id="form-capa"><div class="modal-heading"><p class="eyebrow">NA SUA ESTANTE</p><button id="fechar-modal" type="button" aria-label="Fechar">×</button></div><h2 id="titulo-modal">Uma capa para esta história.</h2><p id="livro-modal" class="modal-book"></p><label for="capa-url">Link da imagem <span>(opcional)</span></label><input id="capa-url" name="capa_url" type="url" placeholder="https://site.com/capa.jpg" maxlength="2048"><p class="field-help">Cole o endereço direto de uma imagem. Deixe vazio para usar a capa padrão. O arquivo continua no site de origem.</p><p id="erro-capa" class="form-error" role="alert"></p><div class="modal-actions"><button id="cancelar-modal" type="button" class="button-secondary">Cancelar</button><button id="salvar-capa" class="button-primary" type="submit">Salvar capa</button></div></form></dialog>
+  <dialog id="modal-cadastro" class="modal-cadastro" aria-labelledby="titulo-cadastro">
+    <form id="form-cadastro">
+      <div class="modal-heading"><p class="eyebrow">UM NOVO CAPÍTULO</p><button id="fechar-cadastro" type="button" aria-label="Fechar cadastro">×</button></div>
+      <h2 id="titulo-cadastro">Um novo livro na estante.</h2>
+      <p id="ajuda-form-livro" class="field-help">Preencha os dados da sua próxima história. Campos com * são obrigatórios.</p>
+      <p id="aviso-edicao" class="field-help" hidden>Autores preenchidos e gêneros selecionados substituem os vínculos atuais. O status será preservado.</p>
+      <fieldset id="campos-cadastro" class="form-fields">
+        <label for="cadastro-titulo">Título *</label>
+        <input id="cadastro-titulo" name="titulo" type="text" required placeholder="Ex.: O Hobbit">
+        <label for="cadastro-autores">Autores <span>(opcional)</span></label>
+        <input id="cadastro-autores" name="autores" type="text" placeholder="Ex.: Neil Gaiman; Terry Pratchett" aria-describedby="ajuda-autores">
+        <p id="ajuda-autores" class="field-help">Separe os nomes por ponto e vírgula. Se nenhum autor for informado, usaremos Autor desconhecido.</p>
+        <div id="grupo-cadastro-status"><label for="cadastro-status">Status de leitura *</label>
+        <select id="cadastro-status" name="status" required><option value="">Escolha uma opção</option><option>Quero ler</option><option>Lendo</option><option>Lido</option><option>Relendo</option><option>Abandonado</option></select></div>
+        <fieldset class="genre-fieldset" aria-describedby="ajuda-generos"><legend>Gêneros *</legend><p id="ajuda-generos" class="field-help">Selecione pelo menos um. Você pode escolher vários gêneros.</p><div id="cadastro-generos" class="genre-options"></div></fieldset>
+        <label for="cadastro-capa">Link da capa <span>(opcional)</span></label>
+        <input id="cadastro-capa" name="capa_url" type="url" placeholder="https://site.com/capa.jpg" maxlength="2048" aria-describedby="ajuda-capa-cadastro">
+        <p id="ajuda-capa-cadastro" class="field-help">Use o endereço direto de uma imagem HTTP/HTTPS. Sem link ou se a imagem falhar, mostraremos a capa padrão.</p>
+      </fieldset>
+      <p id="cadastro-carregamento" class="field-help" role="status"></p>
+      <button id="recarregar-generos" class="button-secondary" type="button" hidden>Tentar carregar gêneros novamente</button>
+      <p id="erro-cadastro" class="form-error" role="alert"></p>
+      <section id="cadastro-duplicado" class="duplicate-panel" aria-labelledby="titulo-duplicado" hidden>
+        <h3 id="titulo-duplicado">Este livro já está cadastrado.</h3><p id="dados-duplicado"></p><p id="pergunta-duplicado"></p>
+        <p id="ajuda-duplicado" class="field-help">Somente o status será alterado. Os demais dados e a capa do livro existente serão preservados.</p>
+        <div class="modal-actions"><button id="nao-alterar-duplicado" type="button" class="button-secondary">Não alterar</button><button id="alterar-duplicado" type="button" class="button-primary">Confirmar alteração de status</button></div>
+      </section>
+      <div class="modal-actions"><button id="cancelar-cadastro" type="button" class="button-secondary">Cancelar</button><button id="salvar-cadastro" type="submit" class="button-primary" disabled>Cadastrar livro</button></div>
+    </form>
+  </dialog>
+  <dialog id="modal-status" aria-labelledby="titulo-status">
+    <form id="form-status">
+      <div class="modal-heading"><p class="eyebrow">SEU MOMENTO DE LEITURA</p><button id="fechar-status" type="button" aria-label="Fechar alteração de status">×</button></div>
+      <h2 id="titulo-status">Atualizar status.</h2>
+      <p id="livro-status" class="modal-book"></p>
+      <label for="novo-status">Status de leitura</label>
+      <select id="novo-status" name="status" required><option>Quero ler</option><option>Lendo</option><option>Lido</option><option>Relendo</option><option>Abandonado</option></select>
+      <p class="field-help">Somente o status será alterado. Título, autores, gêneros e capa serão preservados.</p>
+      <p id="erro-status" class="form-error" role="alert"></p>
+      <div class="modal-actions"><button id="cancelar-status" class="button-secondary" type="button">Cancelar</button><button id="salvar-status" class="button-primary" type="submit">Salvar status</button></div>
+    </form>
+  </dialog>
+  <dialog id="modal-exclusao" aria-labelledby="titulo-exclusao" aria-describedby="aviso-exclusao">
+    <form id="form-exclusao">
+      <div class="modal-heading"><p class="eyebrow">SUA BIBLIOTECA</p><button id="fechar-exclusao" type="button" aria-label="Fechar confirmação de exclusão">×</button></div>
+      <h2 id="titulo-exclusao">Excluir este livro?</h2>
+      <p id="livro-exclusao" class="modal-book"></p>
+      <p id="aviso-exclusao" class="field-help">Esta exclusão é definitiva. O livro sairá da biblioteca, mas os autores e gêneros continuarão cadastrados.</p>
+      <p id="erro-exclusao" class="form-error" role="alert"></p>
+      <div class="modal-actions"><button id="cancelar-exclusao" type="button" class="button-secondary">Cancelar</button><button id="confirmar-exclusao" type="submit" class="button-danger">Excluir definitivamente</button></div>
+    </form>
+  </dialog>
+  <dialog id="modal-autor" aria-labelledby="titulo-modal-autor">
+    <form id="form-autor">
+      <div class="modal-heading"><p class="eyebrow">QUEM ESCREVE SUAS HISTÓRIAS</p><button id="fechar-autor" type="button" aria-label="Fechar formulário de autor">×</button></div>
+      <h2 id="titulo-modal-autor">Cadastrar autor.</h2>
+      <p id="aviso-editar-autor" class="field-help" hidden>Ao salvar, o nome será atualizado em todos os livros vinculados a este autor. O ID e os vínculos serão mantidos.</p>
+      <label for="autor-nome">Nome do autor *</label>
+      <input id="autor-nome" name="nome" type="text" required autocomplete="off" aria-describedby="ajuda-nome-autor">
+      <p id="ajuda-nome-autor" class="field-help">Informe o nome completo. Nomes já cadastrados não serão duplicados.</p>
+      <p id="erro-autor" class="form-error" role="alert"></p>
+      <div class="modal-actions"><button id="cancelar-autor" type="button" class="button-secondary">Cancelar</button><button id="salvar-autor" type="submit" class="button-primary">Cadastrar autor</button></div>
+    </form>
+  </dialog>
+  <dialog id="modal-excluir-autor" aria-labelledby="titulo-excluir-autor" aria-describedby="aviso-excluir-autor">
+    <form id="form-excluir-autor">
+      <div class="modal-heading"><p class="eyebrow">SEUS AUTORES</p><button id="fechar-excluir-autor" type="button" aria-label="Fechar confirmação de exclusão do autor">×</button></div>
+      <h2 id="titulo-excluir-autor">Excluir este autor?</h2>
+      <p id="autor-exclusao" class="modal-book"></p>
+      <p id="aviso-excluir-autor" class="field-help">A exclusão é definitiva e só será permitida se não houver livros vinculados a este autor. Nenhum livro será excluído.</p>
+      <p id="erro-excluir-autor" class="form-error" role="alert"></p>
+      <div class="modal-actions"><button id="cancelar-excluir-autor" type="button" class="button-secondary">Cancelar</button><button id="confirmar-excluir-autor" type="submit" class="button-danger">Excluir autor</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

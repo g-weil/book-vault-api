@@ -58,6 +58,7 @@ class Livro(Base):
     titulo: Mapped[str] = mapped_column(String)
     # Títulos iguais são permitidos quando o conjunto de autores é diferente.
     titulo_normalizado: Mapped[str] = mapped_column(String, index=True)
+    capa_url: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[StatusLeitura] = mapped_column(
         SqlEnum(
             StatusLeitura,

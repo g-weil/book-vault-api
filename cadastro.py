@@ -45,7 +45,11 @@ def cadastrar_livro(dados: LivroCadastro, session: Session) -> LivroCadastrado:
                 raise HTTPException(
                     status_code=409,
                     detail={
-                        "mensagem": "Este livro já está cadastrado. Deseja alterar o status?",
+                        "mensagem": (
+                            "Este livro já está cadastrado e já possui esse mesmo status."
+                            if existente.status == dados.status
+                            else "Este livro já está cadastrado. Deseja alterar o status?"
+                        ),
                         "livro": LivroConsulta.model_validate(existente).model_dump(mode="json"),
                     },
                 )
@@ -64,6 +68,7 @@ def cadastrar_livro(dados: LivroCadastro, session: Session) -> LivroCadastrado:
 
         livro = Livro(
             titulo=dados.titulo,
+            capa_url=dados.capa_url,
             titulo_normalizado=titulo_normalizado,
             status=dados.status,
             autores=autores,
