@@ -3,13 +3,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from cadastro import normalizar
+from database import transacao_escrita
 from models import Autor, Genero, Livro
 from schemas import LivroConsulta, LivroEdicao
 
 
 def editar_livro(livro_id: int, dados: LivroEdicao, session: Session) -> LivroConsulta:
-    with session.begin():
-        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    with transacao_escrita(session):
         livro = session.get(Livro, livro_id)
         if livro is None:
             raise HTTPException(status_code=404, detail="Livro não encontrado.")

@@ -9,44 +9,53 @@ Biblioteca pessoal para organizar livros, autores, gêneros e o andamento das le
 - Busca por título e autor, combinada com filtro de status.
 - Vários autores e gêneros por livro, com catálogo fixo de 18 gêneros.
 - Cinco status: **Quero ler**, **Lendo**, **Lido**, **Relendo** e **Abandonado**.
-- Validação de dados, prevenção de duplicidades e persistência em SQLite.
-- Configuração Docker para hospedagem em VPS.
+- Validação de dados, prevenção de duplicidades e persistência em PostgreSQL.
+- Migração de SQLite para PostgreSQL com backup, preservação de IDs e conferência dos registros.
+- Dois contêineres integrados pelo Docker Compose: aplicação e banco de dados.
+- Testes de API, frontend, terminal, concorrência e transferência de dados, com workflow no GitHub Actions.
 
 | Camada | Tecnologias |
 | --- | --- |
 | API | Python, FastAPI e Uvicorn |
 | Modelagem e validação | SQLAlchemy e Pydantic |
-| Banco | SQLite |
+| Banco principal | PostgreSQL 18, com driver Psycopg 3 |
+| Compatibilidade e migração | SQLite |
 | Interface web | HTML, CSS e JavaScript puro |
 | Testes | unittest, HTTP e JavaScript com Node.js |
 | Implantação | Docker e Docker Compose |
 
-## Executar localmente
+## Executar com Docker — recomendado
 
-Use Python 3.12, versão utilizada no desenvolvimento. Não é necessário instalar SQLite separadamente nem instalar Node.js para usar a aplicação.
+Instale Docker com Docker Compose. No Windows, abra o Docker Desktop e aguarde o mecanismo iniciar. Python, PostgreSQL e as dependências da aplicação são instalados nas imagens; não é necessário instalá-los diretamente no computador para usar a interface web. Node.js também não é necessário para executar a aplicação.
 
 ```bash
 git clone https://github.com/g-weil/book-vault-api.git
 cd book-vault-api
 ```
 
-No Windows, pelo PowerShell:
+Na primeira instalação, crie o arquivo local de configuração. No PowerShell:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn main:app --reload
+Copy-Item .env.postgres.example .env.postgres
 ```
 
 No Linux ou macOS:
 
 ```bash
-python3 -m venv .venv
-./.venv/bin/python -m pip install -r requirements.txt
-./.venv/bin/python -m uvicorn main:app --reload
+cp .env.postgres.example .env.postgres
 ```
 
-Mantenha esse terminal aberto enquanto utiliza a aplicação.
+**Faça a cópia somente se `.env.postgres` ainda não existir.** Abra o arquivo e substitua a senha de exemplo por uma senha local. Não sobrescreva as credenciais de uma instalação existente nem envie esse arquivo ao Git. Alterar a senha no arquivo não altera automaticamente a senha de um banco já inicializado.
+
+Na raiz do projeto, valide a configuração e inicie os serviços:
+
+```bash
+docker compose config --quiet
+docker compose up -d --build --wait
+docker compose ps
+```
+
+O comando baixa as imagens necessárias, constrói a aplicação e inicia os dois serviços em segundo plano. Ambos devem aparecer como `healthy`. Não é necessário executar Uvicorn em outro terminal.
 
 | Acesso | Endereço |
 | --- | --- |
@@ -54,9 +63,24 @@ Mantenha esse terminal aberto enquanto utiliza a aplicação.
 | Swagger | http://127.0.0.1:8000/docs |
 | OpenAPI | http://127.0.0.1:8000/openapi.json |
 
-A API serve também a interface web; não é necessário iniciar outro servidor para o frontend. Na inicialização, prepara as tabelas e o catálogo de gêneros. Por padrão, os dados ficam em `book_vault.db`, na pasta do projeto. O banco local e o ambiente virtual não são versionados.
+A aplicação serve a API e os arquivos estáticos do frontend no mesmo contêiner. O PostgreSQL fica em outro contêiner, com volume persistente. A API aguarda o banco estar pronto e cria as tabelas e o catálogo de gêneros, sem apagar registros existentes. Uma instalação nova começa sem livros; a biblioteca do desenvolvedor não é incluída na imagem.
 
-Se aparecer `ERR_CONNECTION_REFUSED`, confira se o Uvicorn continua em execução. Atualizar a página não inicia o servidor.
+Se aparecer `ERR_CONNECTION_REFUSED`, confira se o Docker está executando e consulte `docker compose ps` e `docker compose logs --tail=100 book-vault`. Atualizar a página não inicia o servidor.
+
+### Iniciar novamente, atualizar e parar
+
+```bash
+# Iniciar uma instalação já construída
+docker compose up -d --wait
+
+# Reconstruir após alterar o código ou as dependências
+docker compose up -d --build --wait
+
+# Parar os serviços sem remover os contêineres
+docker compose stop
+```
+
+O código é copiado para a imagem; mudanças locais exigem reconstrução. `docker compose down` remove os contêineres e preserva o volume. **Não use `docker compose down -v` se quiser manter os dados.** Um volume persistente não substitui backups.
 
 ## Como usar a interface web
 
@@ -123,17 +147,21 @@ Selecione **Autores** na barra lateral para listar nomes e IDs, inclusive autore
 
 ## Menu de terminal
 
-Com a API em execução, abra um segundo terminal na pasta do projeto.
+Com a aplicação executando pelo Compose, utilize Python 3.12 no computador para iniciar o menu. Na primeira utilização, prepare o ambiente virtual e as dependências.
 
 Windows:
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe menu.py
 ```
 
 Linux ou macOS:
 
 ```bash
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
 ./.venv/bin/python menu.py
 ```
 
@@ -230,14 +258,31 @@ Status diferentes das cinco opções são rejeitados com orientação sobre os v
 
 ## Modelagem e regras
 
+O PostgreSQL é o banco da execução pelo Compose. A biblioteca local foi transferida do SQLite com IDs e vínculos preservados e comparação integral antes e depois do commit. O SQLite original foi mantido como cópia anterior, sem sincronização automática com PostgreSQL. Consulte o [guia de PostgreSQL local](docs/POSTGRES_LOCAL.md).
+
 - `livros`: título, título normalizado, status e URL opcional da capa.
 - `autores`: nome e nome normalizado, com unicidade do nome normalizado.
 - `generos`: catálogo fixo, sem cadastro livre pelo usuário.
 - `livros_autores` e `livros_generos`: relações muitos-para-muitos, sem repetição do mesmo par de IDs.
 - A identidade do livro considera título normalizado e conjunto de autores; status, capa e gêneros não definem duplicidade.
 - Escritas são transacionais: alterações relacionadas são confirmadas juntas ou desfeitas em caso de erro.
+- No PostgreSQL, as operações de escrita da aplicação usam um bloqueio transacional compartilhado antes das validações, impedindo duplicidades em requisições simultâneas. No SQLite, a compatibilidade utiliza `BEGIN IMMEDIATE`. Escritas SQL externas precisam respeitar o mesmo protocolo; a identidade por título e conjunto de autores é uma regra da aplicação.
 
-As decisões detalhadas estão em [REQUISITOS.md](REQUISITOS.md). A inicialização também trata a adição da coluna de capa em bancos da versão anterior; isso não substitui um sistema geral de migrações.
+As decisões detalhadas estão em [REQUISITOS.md](REQUISITOS.md). A inicialização também trata a adição da coluna de capa em bancos da versão anterior. `create_all` e essa alteração aditiva não substituem um sistema geral de migrações versionadas.
+
+### Transferir uma biblioteca SQLite existente
+
+`migracao.py` gera um backup consistente, verifica integridade e vínculos, copia as cinco tabelas em ordem de dependência e compara os registros integralmente antes de confirmar. Preserva IDs e ajusta as sequências dos próximos cadastros. Falhas desfazem a cópia no PostgreSQL e preservam o backup.
+
+**O destino precisa estar vazio.** A ferramenta recusa sobrescrever ou mesclar dados. A API deve ficar parada durante a transferência; iniciá-la antes em um destino novo já cria o catálogo e deixa esse banco preenchido.
+
+Para uma biblioteca que ainda não foi migrada, configure `BOOK_VAULT_MIGRATION_DATABASE_URL` no processo com a URL PostgreSQL do destino e execute pelo ambiente Python local:
+
+```powershell
+.\.venv\Scripts\python.exe migracao.py --origem book_vault.db --backups backups
+```
+
+Não repita esse comando no banco já migrado. Os backups ficam fora do Git e da imagem. Preserve cópias também fora do computador; depois da troca, use somente PostgreSQL para novos cadastros. Veja o [procedimento detalhado](docs/POSTGRES_LOCAL.md).
 
 ## Testes
 
@@ -245,11 +290,13 @@ As decisões detalhadas estão em [REQUISITOS.md](REQUISITOS.md). A inicializaç
 
 O workflow [Testes automatizados](.github/workflows/testes.yml) executa a suíte a cada `push` e `pull request`. Também pode ser iniciado manualmente pela aba **Actions**, em **Run workflow**, quando o arquivo estiver na branch padrão.
 
-O GitHub prepara um ambiente Linux com Python 3.12 e Node.js 24, instala as dependências e executa os testes existentes. Node.js é instalado para que o teste do JavaScript não seja ignorado. Os bancos de teste são isolados; o workflow não acessa a VPS nem faz implantação.
+O workflow prepara Linux, Python 3.12, Node.js 24 e um serviço PostgreSQL 18 temporário. Aguarda o healthcheck do banco, verifica uma conexão real e executa os testes SQLite, PostgreSQL, menu, frontend e transferência. As credenciais são exclusivas desse ambiente descartável; o workflow não acessa a biblioteca pessoal, a VPS nem faz implantação.
 
-Após enviar as alterações, abra a aba **Actions** ou os checks da pull request. Uma execução verde indica sucesso; em caso de falha, abra a etapa **Executar testes** para consultar os detalhes. Para impedir merges com testes falhando, é necessário configurar uma regra de proteção da branch exigindo o check **API, menu e frontend**.
+Após enviar as alterações, abra a aba **Actions** ou os checks da pull request. Em caso de falha, consulte as etapas de conexão e **Executar testes SQLite, PostgreSQL, menu e frontend**. Para impedir merges com testes falhando, configure uma regra de proteção da branch exigindo o check **API, menu e frontend**. A execução local não confirma o resultado no GitHub; o workflow atualizado precisa ser enviado e conferido remotamente.
 
 ### Execução local
+
+Prepare o ambiente Python e instale `requirements.txt` conforme os comandos da seção do menu. Execute na raiz:
 
 Windows:
 
@@ -263,7 +310,17 @@ Linux ou macOS:
 ./.venv/bin/python -m unittest discover -s tests -v
 ```
 
-Os testes utilizam banco em memória ou arquivos temporários, sem modificar a biblioteca local. Verificam operações por HTTP, fluxos do menu e preparação/persistência do banco.
+Para habilitar também PostgreSQL, forneça `BOOK_VAULT_TEST_DATABASE_URL` ao processo de testes, apontando para um servidor de desenvolvimento acessível, com permissão para criar um banco descartável. Exemplo de formato, sem credenciais reais:
+
+```text
+postgresql+psycopg://USUARIO:SENHA_CODIFICADA@127.0.0.1:5432/BANCO
+```
+
+O arquivo `.env.postgres` é lido pelo Compose, não automaticamente pelo Python executado no computador. Configure a variável separadamente e não exponha a URL real no Git ou em mensagens. Caracteres especiais na senha exigem codificação quando inseridos em uma URL textual.
+
+Os testes PostgreSQL criam um banco `book_vault_test_` com sufixo aleatório, executam somente nele e o removem ao concluir; não removem tabelas do banco indicado pela URL. Sem a variável, esses testes são explicitamente ignorados. Os testes SQLite usam memória ou arquivos temporários.
+
+A suíte completa executada localmente passou nos **40 testes**, sem testes ignorados, com PostgreSQL e Node.js disponíveis. Cobre CRUD, filtros, validações, vínculos, concorrência, rollback, inicialização repetida, preservação dos dados e IDs na transferência e rejeição de destino preenchido. Os dados pessoais não são utilizados como massa de testes.
 
 Se Node.js estiver disponível, a suíte também verifica interações do JavaScript com um DOM simplificado e requisições reais à API temporária. Isso não substitui testes visuais e de interação em um navegador. Node.js não é necessário para executar a aplicação.
 
@@ -271,22 +328,47 @@ Para uma verificação manual, cadastre um livro de teste, localize-o pelos filt
 
 ## Docker e VPS
 
-Com Docker e Docker Compose instalados, execute na raiz:
+O Compose mantém dois serviços na mesma rede:
 
-```bash
-docker compose config
-docker compose up -d --build
-docker compose ps
-docker compose logs --tail=100 book-vault
+```text
+Navegador ou menu
+        |
+        v
+book-vault: API FastAPI + frontend
+        |
+        v
+postgres: PostgreSQL 18
+        |
+        v
+Volume persistente postgres-data
 ```
 
-API e frontend ficam no mesmo contêiner. O SQLite fica em `/data/book_vault.db`, no volume persistente `book-vault-data`. O banco local não é copiado para a imagem: uma instalação nova começa com uma biblioteca vazia.
+Na rede interna, a API usa `postgres:5432`. No computador, os acessos publicados são `127.0.0.1:8000` para a aplicação e `127.0.0.1:5432` para o banco. `localhost` dentro da API apontaria para o próprio contêiner, não para PostgreSQL.
+
+Para conferir o estado e os logs:
+
+```bash
+docker compose config --quiet
+docker compose ps
+docker compose logs --tail=100 book-vault
+docker compose logs --tail=100 postgres
+```
+
+O PostgreSQL grava no volume `book-vault-postgres-local_postgres-data`, montado em `/var/lib/postgresql`, conforme a imagem 18. O nome do projeto `book-vault-postgres-local` foi mantido para reutilizar o volume da migração. Não altere esse nome nem use outro `-p` em uma instalação existente sem planejar a mudança. O nome interno não determina o domínio público.
+
+`compose.postgres.yaml` mantém a configuração do banco para preparação e diagnóstico. `compose.yaml` a reutiliza e adiciona a aplicação; use o Compose integrado na rotina. A API executa sem root, e os dois serviços têm verificações de disponibilidade e política de reinício. O Docker precisa estar funcionando; serviços parados manualmente não são ligados automaticamente por essa política.
 
 | Configuração | Padrão | Uso |
 | --- | --- | --- |
 | `BIND_ADDRESS` | `127.0.0.1` | Interface do host que publica a porta no Compose. |
 | `PORT` | `8000` | Porta publicada no host. |
-| `BOOK_VAULT_DB_PATH` | `book_vault.db` local; `/data/book_vault.db` no contêiner | Caminho do banco usado pela aplicação. |
+| `POSTGRES_DB` | Definido em `.env.postgres` | Nome do banco PostgreSQL. |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` | Definidos em `.env.postgres` | Credenciais locais, não versionadas. |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | `postgres` / `5432` no serviço da API | Destino interno da conexão; a senha original é tratada por `URL.create`. |
+| `DATABASE_URL` | Opcional | URL explícita com prioridade sobre a configuração por campos. |
+| `BOOK_VAULT_DB_PATH` | `book_vault.db` | Compatibilidade SQLite fora do Compose, quando não há URL nem host PostgreSQL. |
+
+**Não inicie a biblioteca migrada pelo comando antigo do Uvicorn sem configurar a conexão.** Sem `DATABASE_URL` e sem `POSTGRES_HOST`, o código ainda utiliza SQLite por compatibilidade; os dois bancos não sincronizam. A execução pelo Compose configura PostgreSQL explicitamente.
 
 Por padrão, o acesso fica restrito à máquina hospedeira. Para acessar a VPS por túnel SSH, execute no seu computador:
 
@@ -298,7 +380,7 @@ Com o túnel aberto, acesse `http://127.0.0.1:8080/` e `http://127.0.0.1:8080/do
 
 `docker compose down` preserva o volume. **Não use `docker compose down -v` se quiser manter os dados**, pois remove o volume. Mantenha o nome do projeto Compose ao atualizar para continuar utilizando o mesmo volume.
 
-Consulte [o guia de implantação na VPS](docs/DEPLOY_VPS.md) para atualizações, verificação do serviço e backups. A construção da imagem e a execução na VPS precisam ser conferidas no ambiente de destino. Alterar somente este README não exige reconstruir ou reiniciar a aplicação.
+Consulte [o guia de implantação na VPS](docs/DEPLOY_VPS.md) para configuração, atualizações e backup com `pg_dump`. A imagem e os dois serviços foram construídos e verificados localmente; o funcionamento na VPS precisa ser validado no destino. O modelo local usa um administrador do PostgreSQL; uma implantação de produção deve planejar permissões limitadas para a aplicação. Alterar somente este README não exige reconstruir ou reiniciar os serviços.
 
 ## Estrutura principal
 
@@ -306,10 +388,13 @@ Consulte [o guia de implantação na VPS](docs/DEPLOY_VPS.md) para atualizaçõe
 frontend/           Interface web: HTML, CSS, JavaScript e imagem padrão
 tests/              Testes automatizados
 docs/DEPLOY_VPS.md   Hospedagem e backup
+docs/POSTGRES_LOCAL.md PostgreSQL, migração e execução integrada
+.github/workflows/  Testes automáticos no GitHub Actions
 main.py             Aplicação FastAPI, rotas e entrega do frontend
 models.py           Modelos SQLAlchemy e relacionamentos
 schemas.py          Contratos de entrada, saída e validações
-database.py         Conexão, sessões e preparação do SQLite
+database.py         Conexões, sessões, preparo das tabelas e transações
+migracao.py         Backup e transferência de SQLite para PostgreSQL
 cadastro.py         Regras de cadastro de livros
 edicao.py           Regras de edição de livros
 autores.py          Gerenciamento de autores
@@ -317,10 +402,35 @@ catalogo.py         Catálogo fixo de gêneros
 cliente_api.py      Cliente HTTP do menu
 menu.py             Interface de terminal
 Dockerfile          Imagem da aplicação
-compose.yaml        Serviço e volume persistente
+compose.yaml        Aplicação e PostgreSQL integrados
+compose.postgres.yaml Configuração do serviço PostgreSQL e volume
+.env.postgres.example Modelo de configuração sem credenciais reais
 requirements.txt    Dependências Python
 ```
 
 ## Escopo e melhorias futuras
 
-Esta versão atende a uma biblioteca pessoal única. Autenticação, bibliotecas por usuário, histórico de releituras, diferenciação de autores homônimos, ISBN/edições e upload de imagens ficam como possibilidades de evolução.
+### Próxima funcionalidade aprovada: avaliações
+
+**Planejada, ainda não implementada.** As regras foram aprovadas e registradas em [REQUISITOS.md](REQUISITOS.md); o endpoint e os componentes abaixo ainda não estão disponíveis.
+
+- Avaliação opcional de **0,5 a 5,0**, em intervalos de **0,5**. Zero será rejeitado; `null` significará sem avaliação.
+- Permitir adicionar ou editar a nota somente quando o status atual for **Lido** ou **Relendo**, com validação também no backend.
+- Após cadastro como Lido ou Relendo, abrir um modal opcional com cinco estrelas clicáveis e seleção de meias estrelas, também acessível por teclado e com indicação numérica da nota.
+- Após uma mudança de status para Lido ou Relendo, inclusive entre esses dois estados, oferecer o mesmo modal. Manter o mesmo status não caracteriza mudança.
+- Se já existir avaliação, abrir o modal com a nota selecionada. Confirmar altera a nota; fechar ou escolher **Agora não** preserva a anterior. Sem nota anterior, mantém `null`.
+- Cancelar a avaliação ou ocorrer uma falha nela não desfaz o cadastro ou a mudança de status já confirmados.
+- Disponibilizar uma ação no card para adicionar ou editar avaliações de livros já cadastrados, respeitando os status permitidos. Livros existentes começarão sem nota.
+- Preservar e exibir a avaliação se o status mudar para outro estado. Isso não libera adicionar ou editar a nota fora de Lido e Relendo.
+- Permitir **Remover avaliação**, voltando a `null`, sem apagá-la automaticamente por mudança de status.
+
+A implementação será dividida em pequenas etapas:
+
+1. Adicionar o campo opcional `avaliacao` em `livros`, com decimal exato e restrições de intervalo e passo, preservando os registros existentes.
+2. Criar schemas e a operação planejada `PATCH /livros/{livro_id}/avaliacao`, aceitando uma nota ou `null` para remoção; incluir o campo nas consultas.
+3. Implementar o modal de estrelas e integrar as ações de cadastro, alteração de status e cards.
+4. Testar valores inválidos, status elegíveis, preservação, remoção, livros antigos, cancelamento e falhas entre as operações.
+
+### Outras possibilidades
+
+Esta versão atende a uma biblioteca pessoal única. Autenticação, bibliotecas por usuário, histórico de releituras, diferenciação de autores homônimos, ISBN/edições e upload de imagens ficam como possibilidades de evolução, sem implementação nesta atualização.

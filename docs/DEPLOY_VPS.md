@@ -1,108 +1,113 @@
-# Executar o Book Vault na VPS com Docker
+﻿# Executar o Book Vault na VPS com Docker
 
-O contêiner serve a API e o frontend. O SQLite fica em um volume Docker separado
-da imagem, em `/data/book_vault.db`. O servidor usa um processo Uvicorn, sem reload,
-e executa como usuário sem privilégios de root.
+O Compose executa dois serviços: `book-vault` (FastAPI e frontend) e `postgres`
+(PostgreSQL 18). A aplicação usa usuário sem root e Uvicorn sem reload. O banco
+armazena seus arquivos em volume persistente montado em `/var/lib/postgresql`.
 
-## 1. Preparar
+## Preparar
 
-Na VPS Linux, instale Docker Engine e o plugin Docker Compose seguindo a documentação
-da sua distribuição: https://docs.docker.com/engine/install/
+Instale Docker Engine e Docker Compose pela [documentação oficial](https://docs.docker.com/engine/install/).
+Clone a versão do projeto com `Dockerfile`, `compose.yaml`, `compose.postgres.yaml`
+e `frontend/`. As mudanças locais precisam estar commitadas e enviadas ao GitHub.
+Não copie `.venv`, bancos ou credenciais dentro da imagem.
 
-Envie ou clone a versão do projeto que contém Dockerfile, compose.yaml e frontend/.
-As mudanças precisam estar commitadas e enviadas ao GitHub antes de usar git clone
-ou git pull para obtê-las na VPS. Não copie sua .venv nem credenciais.
+Em instalação nova, copie `.env.postgres.example` para `.env.postgres` e escolha
+credenciais exclusivas da VPS. Não sobrescreva um arquivo de configuração existente.
+O modelo usa um administrador PostgreSQL para desenvolvimento; para produção,
+planeje um usuário da aplicação com permissões limitadas.
 
-Na pasta do projeto, confira a instalação e a configuração:
+O Compose lê o arquivo local para os dois serviços. A aplicação recebe
+`POSTGRES_HOST=postgres` e `POSTGRES_PORT=5432`, construindo a URL com a senha
+original, inclusive caracteres especiais. Não coloque uma `DATABASE_URL` local
+nesse arquivo, pois ela teria prioridade sobre esses campos.
+
+## Iniciar e verificar
 
 ```bash
-docker --version
-docker compose version
-docker compose config
-```
-
-## 2. Subir
-
-```bash
-docker compose up -d --build
+docker compose config --quiet
+docker compose up -d --build --wait
 docker compose ps
 docker compose logs --tail=100 book-vault
 ```
 
-O primeiro início cria as tabelas e carrega o catálogo de gêneros. O volume começa
-com uma biblioteca vazia; o arquivo do seu computador não é incluído na imagem.
-Reiniciar ou reconstruir o contêiner preserva os dados do volume.
+`config --quiet` valida sem imprimir as credenciais. A API aguarda o banco ficar
+healthy antes de iniciar. O healthcheck da aplicação consulta `/generos`.
+O estado unhealthy sozinho não reinicia o serviço; a política de reinício atua
+quando o processo encerra.
 
-Confira na própria VPS:
+Em instalação nova, o volume começa vazio e a aplicação cria tabelas e gêneros.
+Os livros locais não são enviados automaticamente. Na máquina onde a migração já
+ocorreu, o Compose reutiliza o volume com os livros existentes.
+
+O projeto chama-se `book-vault-postgres-local` para preservar o volume da migração:
+`book-vault-postgres-local_postgres-data`. Não troque o nome nem use outro `-p`
+numa instalação existente sem planejar a mudança; isso pode criar outro volume e
+aparentar perda de dados. Esse nome interno não define o domínio público.
+Instalações antigas com SQLite precisam de transferência separada: esta atualização
+não apaga nem importa automaticamente seus volumes anteriores.
+
+## Acessar
+
+A aplicação publica `127.0.0.1:8000`; o banco publica `127.0.0.1:5432` apenas no host.
+Os contêineres comunicam-se internamente por `postgres:5432`.
+
+Na própria VPS, confira:
 
 ```bash
 curl -f http://127.0.0.1:8000/generos
 ```
 
-O Docker verifica periodicamente esse mesmo endpoint no healthcheck. O reinício
-automático é aplicado se o processo encerrar; o estado unhealthy, sozinho, não
-dispara um reinício pelo Compose.
-
-## 3. Acessar pelo computador
-
-A porta é publicada apenas em 127.0.0.1 da VPS por padrão. A aplicação ainda não
-tem autenticação: quem alcançar seus endpoints pode cadastrar, editar e excluir.
-Para testar com acesso privado, mantenha um túnel SSH aberto no seu computador:
+Para acesso privado, no seu computador:
 
 ```powershell
 ssh -L 8080:127.0.0.1:8000 usuario@IP_DA_VPS
 ```
 
-Depois abra:
+Com o túnel aberto, use `http://127.0.0.1:8080/` e `http://127.0.0.1:8080/docs`.
+Frontend e API usam a mesma origem; não é necessário outro servidor web ou CORS.
+Para domínio público, configure proxy com HTTPS e controle de acesso. A aplicação
+não possui autenticação; quem alcançar seus endpoints poderá alterar a biblioteca.
+Um proxy no host acessa `127.0.0.1:8000`; se estiver na mesma rede Compose, acessa
+`book-vault:8000`.
 
-- Frontend: http://127.0.0.1:8080/
-- Swagger: http://127.0.0.1:8080/docs
+Se a porta da aplicação estiver ocupada, no Linux é possível iniciar com
+`PORT=8001 docker compose up -d --build --wait` e ajustar túnel/proxy para 8001.
+Não exponha a porta do banco na internet.
 
-Como o frontend usa URLs relativas, as chamadas à API passam pelo mesmo túnel.
-Não é necessário configurar CORS nem iniciar o menu de terminal para usar a web.
+## Atualizar e parar
 
-Para usar domínio, configure um proxy reverso com HTTPS apontando para
-127.0.0.1:8000 da VPS e estabeleça controle de acesso antes de disponibilizar a
-aplicação para outras pessoas. Se o proxy estiver em outro contêiner, use a rede
-Docker e o endereço book-vault:8000; 127.0.0.1 nesse proxy não aponta para a aplicação.
-
-Se a porta 8000 da VPS estiver ocupada, altere somente a porta publicada:
-
-```bash
-PORT=8001 docker compose up -d --build
-```
-
-Nesse caso, ajuste também o destino do túnel ou proxy para 8001. O contêiner
-continua ouvindo em 8000 internamente.
-
-## 4. Atualizar e parar
-
-Depois de obter a nova versão do código:
+Após obter alterações no código:
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build --wait
 ```
 
-Para parar sem apagar a biblioteca:
+Para apenas voltar a executar uma instalação existente:
 
 ```bash
-docker compose down
+docker compose up -d --wait
 ```
 
-Não use `docker compose down -v` se quiser preservar os dados: essa opção remove
-o volume. Mantenha o mesmo projeto/pasta do Compose nas atualizações; outro nome de
-projeto pode criar outro volume e parecer uma biblioteca nova.
+O Compose utiliza os arquivos copiados na imagem; mudanças no código exigem build.
+Não é necessário iniciar Uvicorn no terminal. O menu local continua usando a API.
+`docker compose stop` para os serviços. `docker compose down` remove os contêineres
+mas mantém o volume. **Não use `docker compose down -v`**, pois remove os dados.
 
-## 5. Backup consistente do SQLite
+## Backup do PostgreSQL
 
-Use a API de backup do SQLite para obter uma cópia consistente mesmo com o banco
-aberto. O comando cria o backup no volume, e o segundo copia para a pasta da VPS:
+Use `pg_dump` para obter um backup lógico consistente. O exemplo grava um arquivo
+no contêiner e depois copia para o host:
 
 ```bash
-docker compose exec -T book-vault python -c 'import sqlite3; src=sqlite3.connect("/data/book_vault.db"); dst=sqlite3.connect("/data/backup.db"); src.backup(dst); dst.close(); src.close()'
-docker compose cp book-vault:/data/backup.db ./book-vault-backup.db
+docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/book-vault.dump'
+docker compose cp postgres:/tmp/book-vault.dump ./book-vault-backup.dump
 ```
 
-Guarde também cópias fora da VPS. Os arquivos .db não devem ser commitados.
-A importação da sua biblioteca local deve ser planejada separadamente para não
-substituir por acidente dados já cadastrados na VPS.
+Use nomes diferentes para preservar backups anteriores. Guarde cópias fora da VPS
+e teste a restauração em banco separado. Não versione `.dump`, `.db` ou credenciais.
+O volume não substitui backups. Não restaure sobre dados existentes sem planejar e
+aprovar essa operação.
+
+O Docker precisa iniciar após reiniciar o computador/servidor. A política
+`unless-stopped` permite retomar contêineres que estavam executando, mas não liga
+Docker Desktop nem contêineres que foram parados manualmente.

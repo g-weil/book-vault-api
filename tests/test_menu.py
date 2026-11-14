@@ -25,14 +25,20 @@ class TestMenu(unittest.TestCase):
     """Exercita entradas do terminal com HTTP real e banco isolado em memória."""
 
     @classmethod
-    def setUpClass(cls):
-        cls.engine = create_engine(
+    def criar_banco_teste(cls):
+        engine = create_engine(
             "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool,
         )
 
-        @event.listens_for(cls.engine, "connect")
+        @event.listens_for(engine, "connect")
         def ativar_chaves(connection, _):
             connection.execute("PRAGMA foreign_keys=ON")
+
+        return engine
+
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = cls.criar_banco_teste()
 
         def sessao_teste():
             with Session(cls.engine) as session:

@@ -6,10 +6,12 @@
 **/*.db-journal
 **/*.db-wal
 **/*.db-shm
+**/*.dump
 .env
 .env.*
 !.env.example
 book-vault-context
+backups
 tests
 node_modules
 .codex

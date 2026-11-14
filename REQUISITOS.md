@@ -172,8 +172,44 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Porta publicada somente em 127.0.0.1 por padrão. Acesso inicial por túnel SSH ou proxy com controle de acesso, pois a API atual não tem autenticação. Publicação, domínio e importação não são executados nesta preparação.
 - Incluir healthcheck, reinício após encerramento do processo, rotação de logs e instruções de atualização, parada e backup consistente do SQLite em `docs/DEPLOY_VPS.md`.
 
+## Migração para PostgreSQL — preparação local
+- Etapa 1: `database.py` aceita `DATABASE_URL` e usa Psycopg 3 para PostgreSQL. Sem a variável, preservar SQLite e `BOOK_VAULT_DB_PATH`. Aplicar opções e PRAGMA do SQLite somente à conexão SQLite.
+- Etapa 1 concluída: conexão TCP PostgreSQL autenticada, sem transferência de registros.
+- Etapa 2: criação e inspeção das tabelas compatíveis com PostgreSQL e SQLite. Preservar a alteração aditiva de capa para bancos anteriores; `create_all` não substitui migrações versionadas.
+- Centralizar escritas em `transacao_escrita`: `BEGIN IMMEDIATE` no SQLite e bloqueio transacional consultivo comum no PostgreSQL (`pg_advisory_xact_lock`, isolamento `READ COMMITTED`), antes das consultas de validação. Aplicar também a alterações de status e carga inicial de gêneros. O bloqueio é cooperativo entre as operações da aplicação, não uma restrição única para escritas SQL externas.
+- Validar os fluxos HTTP, terminal e frontend com PostgreSQL em banco temporário exclusivo dos testes; incluir cadastros e edições simultâneos, rollback e inicialização repetida. Manter o banco padrão da biblioteca em SQLite até backup, transferência e conferência.
+- Migração aprovada de forma incremental, preservando os dados e as regras existentes.
+- Primeiro preparar PostgreSQL 18 pelo Docker Desktop, em `compose.postgres.yaml`, separado da aplicação atual, com volume persistente e porta publicada somente em 127.0.0.1.
+- Credenciais locais em `.env.postgres`, ignorado pelo Git; disponibilizar somente o modelo sem credenciais reais.
+- Etapa 3 concluída: `migracao.py` gera backup SQLite consistente, bloqueia escritas na origem durante a operação e copia para PostgreSQL vazio em transação única. Recusar destino preenchido, sem sobrescrever ou mesclar registros; preservar o SQLite original e o backup em caso de erro.
+- Comparar integralmente campos e vínculos antes do commit e ajustar as sequências de IDs por reinício transacional. Validar também após o commit e a inicialização da API. Foram preservados 6 livros, 5 autores, 18 gêneros, 6 vínculos de autoria e 9 vínculos de gênero na transferência local.
+- Etapa 4: Compose integrado com dois serviços (`book-vault` e `postgres`), reutilizando o projeto e volume existentes da migração. API aguarda o banco healthy e acessa `postgres:5432`, com configuração explícita via `POSTGRES_HOST` e campos de `.env.postgres`, sem concatenar senha em URL. `DATABASE_URL` continua tendo prioridade; sem URL e sem host, manter compatibilidade SQLite, sem retomar gravações no banco antigo.
+- Dockerfile da aplicação sem armazenamento SQLite em `/data`; dados do PostgreSQL somente no volume do banco. Excluir backups e dumps da imagem e do Git. Início pelo Compose não depende de variáveis temporárias do terminal.
+- Guia da VPS adaptado para PostgreSQL e backup via pg_dump. Workflow de CI configurado com PostgreSQL 18 temporário, healthcheck, conexão explícita de teste e suíte SQLite/PostgreSQL/menu/frontend/transferência. Credenciais apenas do serviço descartável, sem acesso ao banco pessoal. Conferir execução remota após commit e push; falta atualização final do README.
+- Na transferência, preservar IDs e vínculos das cinco tabelas, ajustar os geradores de IDs e validar os dados antes de trocar o banco utilizado pela API.
+- Instruções de uso e persistência em `docs/POSTGRES_LOCAL.md`.
+
+## Avaliação de livros — aprovada, implementação após a migração
+- Implementar somente após concluir e validar a migração para PostgreSQL. Esta seção registra o planejamento; a funcionalidade ainda não está disponível.
+- Cada livro poderá ter uma avaliação atual opcional: 0,5; 1,0; 1,5; 2,0; 2,5; 3,0; 3,5; 4,0; 4,5 ou 5,0. Zero não será aceito; `null` representa ausência de avaliação.
+- Permitir adicionar ou editar a avaliação somente quando o status atual for `Lido` ou `Relendo`, pois é necessário ter concluído uma leitura. Validar essa regra também no backend.
+- Ao cadastrar diretamente como `Lido` ou `Relendo`, após o sucesso abrir um modal opcional de avaliação. Fechar, cancelar ou escolher `Agora não` mantém o cadastro e não grava uma nota.
+- Ao mudar de outro status para `Lido` ou `Relendo`, inclusive de `Lido` para `Relendo` e vice-versa, após o sucesso oferecer o mesmo modal. Manter o mesmo status não caracteriza mudança.
+- O modal terá cinco estrelas clicáveis com seleção de meias estrelas, permitindo as dez notas. Também deverá permitir seleção por teclado e informar a nota numericamente.
+- Quando existir avaliação, abrir o modal com a nota atual selecionada. Salvar altera a nota; dispensar mantém a avaliação anterior. Falha ao avaliar não desfaz o cadastro ou a mudança de status já confirmados.
+- Oferecer uma ação no card para avaliar livros já cadastrados e editar a avaliação, respeitando os status permitidos. Livros existentes começarão sem avaliação.
+- Preservar e exibir a nota quando o livro mudar para outro status. Essa preservação não libera adicionar ou editar avaliações fora de `Lido` e `Relendo`.
+- Permitir remover explicitamente a avaliação, voltando a `null`; não remover a nota automaticamente por mudança de status.
+- Planejamento técnico: campo opcional `avaliacao` na tabela `livros`, com representação decimal exata e restrições de intervalo e passo no schema e no banco; operação específica `PATCH /livros/{livro_id}/avaliacao`, separada do cadastro e da alteração de status, aceitando nota ou `null` para remoção; incluir o campo nas consultas.
+- Testar limites e meias estrelas, rejeição de zero e notas intermediárias inválidas, status elegíveis, preservação e remoção, livros antigos, cancelamento do modal e falhas após cadastro/alteração de status.
+
+## Estrutura Docker aprovada após a migração
+- Dois serviços: aplicação (FastAPI e arquivos estáticos do frontend) e PostgreSQL, em contêineres separados conectados pela rede do Compose.
+- Volume persistente exclusivo do PostgreSQL; atualizar a imagem da aplicação não exige recriar o banco.
+- Não separar o frontend em um terceiro contêiner nesta etapa. O Compose atual com SQLite será adaptado após a validação da migração; a configuração local do PostgreSQL permanece separada durante a preparação.
+
 ## Decisões ainda em aberto
-- Se a obra terá campos adicionais (ano, ISBN, avaliação, notas); gêneros já foram aprovados como obrigatórios e múltiplos.
+- Se a obra terá campos adicionais (ano, ISBN, notas textuais); avaliação foi aprovada acima para implementação posterior à migração, e gêneros já são obrigatórios e múltiplos.
 - Estratégia exata de criação/reutilização de autores homônimos.
 - Se haverá histórico geral de mudanças de status e datas de leitura; o histórico detalhado de releituras já está reservado para uma versão futura.
 - Desenho dos endpoints e schemas das funcionalidades posteriores ao cadastro e consulta iniciais.
