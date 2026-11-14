@@ -3,13 +3,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from cadastro import normalizar
+from database import transacao_escrita
 from models import Autor, Livro
 from schemas import AutorCadastro, AutorConsulta, AutorEdicao
 
 
 def cadastrar_autor(dados: AutorCadastro, session: Session) -> AutorConsulta:
-    with session.begin():
-        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    with transacao_escrita(session):
         nome_normalizado = normalizar(dados.nome)
         existente = session.scalar(select(Autor).where(Autor.nome_normalizado == nome_normalizado))
         if existente is not None:
@@ -28,8 +28,7 @@ def cadastrar_autor(dados: AutorCadastro, session: Session) -> AutorConsulta:
 
 
 def editar_autor(autor_id: int, dados: AutorEdicao, session: Session) -> AutorConsulta:
-    with session.begin():
-        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    with transacao_escrita(session):
         autor = session.get(Autor, autor_id)
         if autor is None:
             raise HTTPException(status_code=404, detail="Autor não encontrado.")
@@ -54,8 +53,7 @@ def editar_autor(autor_id: int, dados: AutorEdicao, session: Session) -> AutorCo
 
 
 def excluir_autor(autor_id: int, session: Session) -> None:
-    with session.begin():
-        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    with transacao_escrita(session):
         autor = session.get(Autor, autor_id)
         if autor is None:
             raise HTTPException(status_code=404, detail="Autor não encontrado.")

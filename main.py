@@ -12,7 +12,7 @@ import models  # Registra as tabelas em Base.metadata antes de criá-las.
 from catalogo import carregar_generos
 from cadastro import cadastrar_livro, normalizar
 from autores import cadastrar_autor, editar_autor, excluir_autor
-from database import Base, SessionLocal, engine, obter_sessao, preparar_banco
+from database import SessionLocal, obter_sessao, preparar_banco, transacao_escrita
 from edicao import editar_livro
 from schemas import (
     AutorCadastro,
@@ -31,7 +31,7 @@ from schemas import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     preparar_banco()
-    with SessionLocal.begin() as session:
+    with SessionLocal() as session, transacao_escrita(session):
         carregar_generos(session)
     yield
 
@@ -78,8 +78,7 @@ def remover_livro(
     livro_id: Annotated[int, Path(gt=0)],
     session: Annotated[Session, Depends(obter_sessao)],
 ):
-    with session.begin():
-        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    with transacao_escrita(session):
         livro = session.get(models.Livro, livro_id)
         if livro is None:
             raise HTTPException(status_code=404, detail="Livro não encontrado.")
@@ -117,7 +116,7 @@ def alterar_status(
     dados: LivroStatusAlteracao,
     session: Annotated[Session, Depends(obter_sessao)],
 ):
-    with session.begin():
+    with transacao_escrita(session):
         livro = session.get(models.Livro, livro_id)
         if livro is None:
             raise HTTPException(status_code=404, detail="Livro não encontrado.")

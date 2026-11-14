@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from database import transacao_escrita
 from models import Autor, Genero, Livro
 from schemas import AutorConsulta, LivroCadastro, LivroCadastrado, LivroConsulta
 
@@ -11,9 +12,7 @@ def normalizar(texto: str) -> str:
 
 
 def cadastrar_livro(dados: LivroCadastro, session: Session) -> LivroCadastrado:
-    with session.begin():
-        # No SQLite, serializa cadastros para impedir duplicados em envios simultâneos.
-        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    with transacao_escrita(session):
 
         genero_ids = set(dados.genero_ids)
         generos = session.scalars(

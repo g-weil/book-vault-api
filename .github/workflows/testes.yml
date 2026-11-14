@@ -14,6 +14,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # Credenciais exclusivas do serviço descartável deste job; nunca de produção.
+    env:
+      BOOK_VAULT_TEST_DATABASE_URL: postgresql+psycopg://bookvault_ci:ci-only-password@127.0.0.1:5432/book_vault_ci
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: bookvault_ci
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: book_vault_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bookvault_ci -d book_vault_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
     steps:
       - name: Baixar o código
         uses: actions/checkout@v6
@@ -36,5 +55,20 @@ jobs:
       - name: Conferir disponibilidade do Node.js
         run: node --version
 
-      - name: Executar testes
+      - name: Verificar conexão com PostgreSQL de testes
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import text
+          from database import criar_engine
+          engine = criar_engine(os.environ["BOOK_VAULT_TEST_DATABASE_URL"])
+          try:
+              with engine.connect() as connection:
+                  assert connection.scalar(text("SELECT 1")) == 1
+              print("PostgreSQL de testes conectado.")
+          finally:
+              engine.dispose()
+          PY
+
+      - name: Executar testes SQLite, PostgreSQL, menu e frontend
         run: python -m unittest discover -s tests -v
