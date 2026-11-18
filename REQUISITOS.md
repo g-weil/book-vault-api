@@ -47,6 +47,7 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Negócios e economia (administração, empreendedorismo, finanças, economia).
 - Artes e cultura (música, cinema, fotografia, arquitetura, crítica cultural).
 - Interesses e vida prática (culinária, viagens, esportes, jardinagem, hobbies).
+- Outros (quando nenhum dos gêneros anteriores representar adequadamente o livro; escolha explícita do usuário, não preenchimento automático).
 
 ## Primeira etapa da API
 - Implementar cadastro (`POST /livros`) e consulta da biblioteca (`GET /livros`) em pequenas etapas, com verificação antes de avançar às demais funcionalidades.
@@ -149,7 +150,7 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Cada card oferece `Excluir livro`, que abre confirmação com título e autores, informando a exclusão definitiva e a preservação dos cadastros de autores e gêneros. Cancelar não envia requisição; confirmar envia `DELETE /livros/{id}`.
 - Após HTTP 204, remover o card da memória e da tela, atualizar a contagem e preservar o filtro ativo. Tratar 204 sem tentar converter corpo vazio em JSON. Erros mantêm o modal e a mensagem da API; durante o envio, bloquear confirmação repetida e fechamento. Em falha de conexão, orientar a atualizar a biblioteca antes de tentar novamente, pois o resultado da operação pode ser incerto.
 - A barra lateral permite alternar `Biblioteca` e `Autores`, usando a mesma área central sem abrir outra página. A área ativa é destacada e o cabeçalho acompanha a seleção.
-- Na área Autores, consultar `GET /autores` e exibir nomes e IDs em tabela, incluindo autores sem vínculos. A busca por parte do nome envia `GET /autores?nome=...` ao clicar em Buscar ou pressionar Enter. Campo vazio/somente espaços omite o filtro; Mostrar todos limpa a busca. Atualizar repete a consulta atual.
+- Na área Autores, consultar `GET /autores` e exibir nomes e IDs em tabela, incluindo autores sem vínculos. A busca por parte do nome é automática após 300 ms sem digitação, sem botão Buscar; Enter antecipa a consulta. Campo vazio/somente espaços omite o filtro; Mostrar todos limpa a busca e cancela a consulta agendada. Atualizar repete a consulta atual. Descartar respostas antigas desde a mudança do texto.
 - Mostrar quantidade de resultados, carregamento, ausência de autores/resultados e falhas de conexão. Somente a resposta da consulta mais recente deve ser exibida.
 - A área Autores oferece `Cadastrar autor` e `Editar` em cada linha, usando um modal com nome obrigatório. Cadastro envia `POST /autores`; edição abre preenchida e envia `PATCH /autores/{id}`. Informar que renomear afeta todos os livros vinculados, mantendo ID e vínculos.
 - Nome em branco é rejeitado. Edição sem mudança informa que não houve alteração sem enviar PATCH. Conflitos HTTP 409 exibem a mensagem e o ID/nome do autor existente, mantendo o formulário preenchido; não unir registros automaticamente. Cancelar não salva; bloquear envios repetidos e fechamento durante a requisição.
@@ -163,7 +164,7 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Acima da busca por autor, oferecer busca por título com atualização após 300 ms de digitação ou envio do formulário. Acrescentar o parâmetro opcional `titulo` ao `GET /livros`: comparação parcial por espaços normalizados e `casefold()`, preservando a exibição original e tratando `%`/`_` como texto literal. Pode combinar com o filtro de autor; vazio explícito retorna HTTP 422 e deve ser omitido pela interface.
 - Os cards e sugestões de volumes respeitam título, autor e status. As sugestões mostram título, autores e ID; selecionar restringe a tela a esse ID para distinguir títulos iguais com autorias diferentes. Atualizar preserva a seleção e os filtros. Editar o título do livro selecionado atualiza o campo e o rótulo sem trocar seu ID.
 - `Limpar título` remove apenas título/seleção de livro, preservando autor e status. Limpar autor também preserva o título. Buscas por título sem resultados retornam HTTP 200 com lista vazia e a interface explica os filtros. Novos cadastros limpam todos os filtros e recarregam os livros se antes havia filtro de autor ou título.
-- Na biblioteca, as buscas de título e autor não têm botões de buscar: as sugestões são automáticas ao digitar, e Enter executa imediatamente. Manter rótulos, mensagens de carregamento/erro, botões de limpar e seleção de sugestões por teclado. Essa mudança não remove o botão Buscar da área de gerenciamento de autores.
+- Na biblioteca, as buscas de título e autor não têm botões de buscar: as sugestões são automáticas ao digitar, e Enter executa imediatamente. Manter rótulos, mensagens de carregamento/erro, botões de limpar e seleção de sugestões por teclado. A área de gerenciamento de autores também usa busca automática sem botão Buscar.
 
 ## Execução em VPS com Docker
 - Dockerfile com Python 3.12, API e frontend no mesmo contêiner, um processo Uvicorn sem reload e usuário sem privilégios de root.
@@ -200,7 +201,7 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Oferecer uma ação no card para avaliar livros já cadastrados e editar a avaliação, respeitando os status permitidos. Livros existentes começarão sem avaliação.
 - Preservar e exibir a nota quando o livro mudar para outro status. Essa preservação não libera adicionar ou editar avaliações fora de `Lido` e `Relendo`.
 - Permitir remover explicitamente a avaliação, voltando a `null`; não remover a nota automaticamente por mudança de status.
-- Planejamento técnico: campo opcional `avaliacao` na tabela `livros`, com representação decimal exata e restrições de intervalo e passo no schema e no banco; operação específica `PATCH /livros/{livro_id}/avaliacao`, separada do cadastro e da alteração de status, aceitando nota ou `null` para remoção; incluir o campo nas consultas.
+- Planejamento técnico atualizado para multiusuário: campo opcional `avaliacao` em `biblioteca_usuario`, com representação decimal exata e restrições de intervalo e passo no schema e no banco; operação específica `PATCH /livros/{livro_id}/avaliacao`, autenticada e limitada à entrada do usuário, separada do cadastro e da alteração de status, aceitando nota ou `null` para remoção; incluir o campo nas consultas pessoais.
 - Testar limites e meias estrelas, rejeição de zero e notas intermediárias inválidas, status elegíveis, preservação e remoção, livros antigos, cancelamento do modal e falhas após cadastro/alteração de status.
 
 ## Estrutura Docker aprovada após a migração
@@ -209,11 +210,31 @@ Python, FastAPI, SQLAlchemy, SQLite, Pydantic. Sem frontend nesta primeira vers�
 - Não separar o frontend em um terceiro contêiner nesta etapa. O Compose atual com SQLite será adaptado após a validação da migração; a configuração local do PostgreSQL permanece separada durante a preparação.
 
 ## Decisões ainda em aberto
+- Evolução multiusuário aprovada: um PostgreSQL compartilhado com bibliotecas privadas por usuário; atribuir os registros atuais à primeira conta do proprietário do projeto. Essa conta terá papel administrativo, com permissões exatas ainda a definir. Não presumir acesso às bibliotecas privadas de outras contas.
+- A proposta de autores particulares foi substituída pelo planejamento do catálogo compartilhado descrito abaixo. Login, sessões e isolamento ainda não foram implementados; os detalhes de autenticação e permissões administrativas precisam de aprovação.
 - Se a obra terá campos adicionais (ano, ISBN, notas textuais); avaliação foi aprovada acima para implementação posterior à migração, e gêneros já são obrigatórios e múltiplos.
 - Estratégia exata de criação/reutilização de autores homônimos.
 - Se haverá histórico geral de mudanças de status e datas de leitura; o histórico detalhado de releituras já está reservado para uma versão futura.
 - Desenho dos endpoints e schemas das funcionalidades posteriores ao cadastro e consulta iniciais.
 - Como tratar versões/edições do mesmo título e usuários múltiplos.
+
+## Catálogo compartilhado e usuários — prioridade atual
+- Priorizar contas com login por e-mail e senha e isolamento das bibliotecas antes da hospedagem pública. Open Library e avaliações permanecem planejadas, sem implementação nesta etapa.
+- Manter livros e autores em catálogo compartilhado local, com sugestões para outras contas a partir dos cadastros dos usuários. Essa decisão substitui a regra anterior de cadastro manual inicialmente particular. A biblioteca pessoal (presença do livro, status e futura avaliação) continua privada; não publicar esses dados nas sugestões.
+- Modelagem proposta: `usuarios`, catálogo `livros`/`autores` e associação `biblioteca_usuario` com usuário, livro e status; unicidade do par usuário/livro. Os gêneros permanecem no catálogo fixo compartilhado.
+- Somente a administração pode corrigir/excluir dados compartilhados. Usuários podem alterar título, autores, gêneros e capa exclusivamente na própria entrada, por personalizações que não modificam o catálogo nem outras bibliotecas. Status e futura avaliação também são particulares. Exclusão pessoal remove somente o vínculo; preserva o catálogo e as outras contas.
+- Preservar os registros atuais na primeira conta administrativa, criada de forma controlada; não permitir escolha de privilégios pelo cadastro público. Nome e e-mail foram informados pelo proprietário para uso local; não versionar esses dados nem solicitar senha em chat.
+- Primeira etapa de código: modelos `Usuario` e `BibliotecaUsuario`, unicidade por e-mail normalizado e por usuário/livro, papéis com padrão sem privilégios, conta inativa sem senha e personalizações locais. Preparação e testes isolados não equivalem a login ou isolamento implementados. Detalhes e próximos passos em `docs/USUARIOS.md`.
+- Durante a transição, manter `Livro.status` para as rotas legadas; não atribuir esse estado a múltiplos usuários. Migrar e adotar o status do vínculo quando adaptar as rotas autenticadas. Avaliação futura pertencerá a `BibliotecaUsuario`, substituindo o planejamento anterior de campo no catálogo `livros`.
+
+## Open Library — integração em espera
+- Quando retomada, usar a API da Open Library para pesquisa sob demanda, sem importar dumps nem coletar o catálogo em massa.
+- Separar o catálogo bibliográfico compartilhado da biblioteca pessoal privada. Status e avaliação passam a pertencer à entrada do usuário, com migração planejada dos dados atuais. A integração e essa modelagem ainda não estão implementadas.
+- Manter cadastro manual quando não houver resultado. A proposta anterior de registro particular foi substituída pela decisão de catálogo local compartilhado acima; fechar as permissões de correção e publicação antes de implementar.
+- Confirmar pelo menos um gênero do catálogo local ao adicionar um livro externo. Não confiar em correspondência automática das categorias externas. Incluir `Outros` como escolha explícita, mantendo os gêneros obrigatórios e múltiplos.
+- Metadados globais não podem ser editados livremente por usuários comuns; definir permissões de curadoria e a modelagem exata de obras, edições e gêneros pessoais antes de implementar.
+- Identificar a aplicação, usar cache, limitar o total de chamadas externas, paginar e selecionar campos. Não fazer scraping, varredura ou requisições distribuídas para contornar limites. Guardar origem e IDs dos registros escolhidos.
+- Revisão das diretrizes, limitações de armazenamento e capas em `docs/OPEN_LIBRARY.md`. A compatibilidade do uso proposto é condicional, não uma autorização irrestrita sobre conteúdo de terceiros. Definir contato e verificar termos gerais antes da publicação.
 
 ## Critérios de desenvolvimento
 Construção incremental; estudante implementa pequenos trechos e recebe explicação, revisão e testes. Não gerar aplicação inteira de forma automática.

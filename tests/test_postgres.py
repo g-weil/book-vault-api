@@ -18,7 +18,7 @@ import database
 import main
 import test_menu
 from cliente_api import ErroAPI
-from models import Autor
+from models import Autor, BibliotecaUsuario, PapelUsuario, Usuario
 from models import Genero, Livro, StatusLeitura
 import migracao
 
@@ -64,8 +64,8 @@ class TestPostgreSQL(test_menu.TestMenu):
         ):
             for _ in range(2):
                 asyncio.run(iniciar())
-        self.assertEqual(len(inspect(self.engine).get_table_names()), 5)
-        self.assertEqual(len(self.api.requisitar("GET", "/generos")), 18)
+        self.assertEqual(len(inspect(self.engine).get_table_names()), 7)
+        self.assertEqual(len(self.api.requisitar("GET", "/generos")), 19)
         self.assertEqual(self.api.requisitar("GET", "/livros")["livros"][0]["id"], livro["id"])
 
     def simultaneos(self, pedidos):
@@ -119,6 +119,29 @@ class TestPostgreSQL(test_menu.TestMenu):
         with self.engine.connect() as connection:
             self.assertEqual(connection.scalar(text("SELECT count(*) FROM livros")), 1)
 
+    def test_estrutura_usuarios_status_e_personalizacoes_no_postgresql(self):
+        livro = self.cadastrar()
+        with Session(self.engine) as session, session.begin():
+            primeiro = Usuario(nome="Pessoa A", email="a@example.com", email_normalizado="a@example.com")
+            segundo = Usuario(nome="Pessoa B", email="b@example.com", email_normalizado="b@example.com")
+            session.add_all([primeiro, segundo])
+            session.flush()
+            self.assertEqual(primeiro.papel, PapelUsuario.USUARIO)
+            self.assertFalse(primeiro.ativo)
+            session.add_all([
+                BibliotecaUsuario(usuario_id=primeiro.id, livro_id=livro["id"], status=StatusLeitura.LIDO,
+                                  personalizacoes={"titulo": "Título particular", "capa_url": None}),
+                BibliotecaUsuario(usuario_id=segundo.id, livro_id=livro["id"], status=StatusLeitura.LENDO),
+            ])
+        with Session(self.engine) as session, session.begin():
+            entradas = session.query(BibliotecaUsuario).order_by(BibliotecaUsuario.usuario_id).all()
+            self.assertEqual(entradas[0].personalizacoes["titulo"], "Título particular")
+            self.assertEqual(entradas[1].personalizacoes, {})
+            session.delete(entradas[0])
+        self.assertEqual(len(self.api.requisitar("GET", "/livros")["livros"]), 1)
+        with self.engine.connect() as connection:
+            self.assertEqual(connection.scalar(text("SELECT count(*) FROM biblioteca_usuario")), 1)
+
     def criar_origem_sqlite(self, caminho):
         origem = database.criar_engine(f"sqlite:///{caminho.as_posix()}")
         try:
@@ -169,7 +192,7 @@ class TestPostgreSQL(test_menu.TestMenu):
             with self.assertRaisesRegex(ValueError, "Destino não está vazio"):
                 migracao.migrar_sqlite(origem, self.engine, backups)
             self.assertEqual(len(list(backups.glob("*.db"))), 1)
-            self.assertEqual(len(self.api.requisitar("GET", "/generos")), 18)
+            self.assertEqual(len(self.api.requisitar("GET", "/generos")), 19)
             self.assertEqual(self.api.requisitar("GET", "/livros")["livros"], [])
 
     def test_migracao_falha_desfaz_destino_e_bloqueia_escritas_na_origem(self):

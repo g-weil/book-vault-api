@@ -72,7 +72,7 @@ async function aguardar(condicao) {
 }
 async function abrir() {
   await elemento("#novo-livro").emitir("click");
-  await aguardar(() => elemento("#cadastro-generos").children.length === 18);
+  await aguardar(() => elemento("#cadastro-generos").children.length === 19);
 }
 function preencher(status = "Quero ler") {
   elemento("#cadastro-titulo").value = "Livro do formulário";
@@ -136,7 +136,7 @@ async function executar() {
   // Edita a partir do botão do card, mantendo o status e os autores em branco.
   const abrirEdicao = async () => {
     await elemento("#estante").children[0].querySelector(".edit-button").emitir("click");
-    await aguardar(() => elemento("#cadastro-generos").children.length === 18);
+    await aguardar(() => elemento("#cadastro-generos").children.length === 19);
   };
   await abrirEdicao();
   assert.equal(elemento("#cadastro-titulo").value, "Livro do formulário");
@@ -253,7 +253,8 @@ async function executar() {
   const autores = await (await fetch(new URL("/autores", process.argv[2]))).json();
   assert.equal(autores.length, 3);
   const generos = await (await fetch(new URL("/generos", process.argv[2]))).json();
-  assert.equal(generos.length, 18);
+  assert.equal(generos.length, 19);
+  assert.ok(generos.some(genero => genero.nome === "Outros"));
 
   // Simula um livro removido por outro cliente após a última consulta.
   await elemento("#atualizar").emitir("click");
@@ -277,8 +278,14 @@ async function executar() {
   assert.equal(elemento("#tabela-autores").hidden, false);
   assert.equal(elemento("#lista-autores").children[0].children[1].textContent, "Autor desconhecido");
 
-  elemento("#nome-autor").value = "  NOVO  ";
-  await elemento("#busca-autores").emitir("submit");
+  const buscasAntesDigitar = pedidos.length;
+  for (const termo of ["N", "NOV", "  NOVO  "]) {
+    elemento("#nome-autor").value = termo;
+    await elemento("#nome-autor").emitir("input");
+  }
+  assert.equal(pedidos.length, buscasAntesDigitar);
+  await aguardar(() => elemento("#quantidade-autores").textContent === "1");
+  assert.equal(pedidos.length, buscasAntesDigitar + 1);
   assert.equal(elemento("#lista-autores").children.length, 1);
   assert.equal(elemento("#lista-autores").children[0].children[1].textContent, "Autor novo");
   assert.ok(pedidos.at(-1).caminho.includes("nome=NOVO"));
@@ -287,7 +294,12 @@ async function executar() {
   assert.equal(elemento("#lista-autores").children.length, 0);
   assert.equal(elemento("#tabela-autores").hidden, true);
   assert.match(elemento("#mensagem-autores").textContent, /Nenhum autor encontrado/);
+  elemento("#nome-autor").value = "busca pendente";
+  await elemento("#nome-autor").emitir("input");
   await elemento("#limpar-busca-autores").emitir("click");
+  const pedidosDepoisLimpar = pedidos.length;
+  await new Promise(resolve => setTimeout(resolve, 350));
+  assert.equal(pedidos.length, pedidosDepoisLimpar);
   assert.equal(elemento("#nome-autor").value, "");
   assert.equal(elemento("#lista-autores").children.length, 3);
   assert.equal(pedidos.filter(p => p.metodo !== "GET").length, escritasAntesAutores);
@@ -455,7 +467,7 @@ async function executar() {
   await elemento("#sugestoes-autores").children[0].children[0].emitir("click");
   assert.equal(elemento("#estante").children.length, 2);
   await elemento("#estante").children[0].querySelector(".edit-button").emitir("click");
-  await aguardar(() => elemento("#cadastro-generos").children.length === 18);
+  await aguardar(() => elemento("#cadastro-generos").children.length === 19);
   elemento("#cadastro-autores").value = "Autor corrigido";
   await elemento("#form-cadastro").emitir("submit");
   assert.equal(elemento("#estante").children.length, 1);
@@ -503,7 +515,7 @@ async function executar() {
   await elemento("#atualizar").emitir("click");
   assert.equal(elemento("#estante").children.length, 1);
   await elemento("#estante").children[0].querySelector(".edit-button").emitir("click");
-  await aguardar(() => elemento("#cadastro-generos").children.length === 18);
+  await aguardar(() => elemento("#cadastro-generos").children.length === 19);
   elemento("#cadastro-titulo").value = "Saga - Volume 1 revisado";
   await elemento("#form-cadastro").emitir("submit");
   assert.equal(elemento("#livros-titulo").value, "Saga - Volume 1 revisado");
