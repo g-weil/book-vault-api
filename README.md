@@ -7,7 +7,7 @@ Biblioteca pessoal para organizar livros, autores, gêneros e o andamento das le
 - Cadastro, consulta, edição e exclusão de livros e autores.
 - Biblioteca em cards, capas opcionais e formulários em modais.
 - Busca por título e autor, combinada com filtro de status.
-- Vários autores e gêneros por livro, com catálogo fixo de 18 gêneros.
+- Vários autores e gêneros por livro, com catálogo fixo de 19 gêneros, incluindo **Outros**.
 - Cinco status: **Quero ler**, **Lendo**, **Lido**, **Relendo** e **Abandonado**.
 - Validação de dados, prevenção de duplicidades e persistência em PostgreSQL.
 - Migração de SQLite para PostgreSQL com backup, preservação de IDs e conferência dos registros.
@@ -140,7 +140,7 @@ A API responde com HTTP **204**, sem corpo de resposta. A interface remove o car
 
 Selecione **Autores** na barra lateral para listar nomes e IDs, inclusive autores sem livros.
 
-- **Consultar:** pesquise por parte do nome ou liste todos.
+- **Consultar:** digite parte do nome para buscar automaticamente após uma pausa de 300 ms; Enter antecipa a consulta. Sem botão Buscar, com **Mostrar todos** para limpar o filtro.
 - **Cadastrar:** informe um nome não vazio. Um nome normalizado já existente é rejeitado.
 - **Editar:** altere o nome mantendo o mesmo ID. A mudança aparece em todos os livros vinculados.
 - **Excluir:** confira o autor e confirme. Só é permitido quando não possui livros vinculados; caso contrário, a API retorna HTTP 409.
@@ -426,11 +426,15 @@ requirements.txt    Dependências Python
 
 A implementação será dividida em pequenas etapas:
 
-1. Adicionar o campo opcional `avaliacao` em `livros`, com decimal exato e restrições de intervalo e passo, preservando os registros existentes.
+1. Após usuários e isolamento, adicionar o campo opcional `avaliacao` em `biblioteca_usuario`, com decimal exato e restrições de intervalo e passo, preservando os registros existentes.
 2. Criar schemas e a operação planejada `PATCH /livros/{livro_id}/avaliacao`, aceitando uma nota ou `null` para remoção; incluir o campo nas consultas.
 3. Implementar o modal de estrelas e integrar as ações de cadastro, alteração de status e cards.
 4. Testar valores inválidos, status elegíveis, preservação, remoção, livros antigos, cancelamento e falhas entre as operações.
 
 ### Outras possibilidades
+
+Foi priorizada a evolução para contas com login por e-mail e senha, bibliotecas privadas e catálogo local compartilhado de livros e autores. Cadastros poderão aparecer como sugestões para outras contas, sem expor status ou avaliações pessoais. A Open Library e as avaliações ficam em espera; quando houver integração, manter cadastro manual e confirmação de gêneros, incluindo **Outros**. Login, isolamento entre contas e integração externa **ainda não estão implementados**. Consulte [REQUISITOS.md](REQUISITOS.md) e a [revisão da Open Library](docs/OPEN_LIBRARY.md).
+
+Os modelos iniciais `Usuario` e `BibliotecaUsuario` foram preparados com testes isolados. A biblioteca pessoal terá status e personalizações de título, autores, gêneros e capa sem alterar o catálogo compartilhado. A migração da biblioteca real, ativação da conta, autenticação e proteção das rotas serão feitas nas próximas etapas; veja o [plano de usuários](docs/USUARIOS.md). A avaliação futura pertencerá à entrada pessoal da biblioteca.
 
 Esta versão atende a uma biblioteca pessoal única. Autenticação, bibliotecas por usuário, histórico de releituras, diferenciação de autores homônimos, ISBN/edições e upload de imagens ficam como possibilidades de evolução, sem implementação nesta atualização.

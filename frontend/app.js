@@ -524,8 +524,10 @@ const nomeAutor = document.querySelector("#nome-autor");
 const listaAutores = document.querySelector("#lista-autores");
 const mensagemAutores = document.querySelector("#mensagem-autores");
 let versaoBuscaAutores = 0;
+let temporizadorBuscaAutores;
 
 async function carregarAutores() {
+  clearTimeout(temporizadorBuscaAutores);
   const versao = ++versaoBuscaAutores;
   const termo = nomeAutor.value.trim();
   const caminho = termo ? `/autores?${new URLSearchParams({ nome: termo })}` : "/autores";
@@ -536,7 +538,7 @@ async function carregarAutores() {
   mensagemAutores.hidden = false;
   mensagemAutores.classList.remove("error");
   mensagemAutores.textContent = "Consultando autores…";
-  for (const id of ["buscar-autores", "atualizar-autores", "limpar-busca-autores"]) {
+  for (const id of ["atualizar-autores", "limpar-busca-autores"]) {
     document.querySelector(`#${id}`).disabled = true;
   }
   try {
@@ -579,7 +581,7 @@ async function carregarAutores() {
   } finally {
     if (versao === versaoBuscaAutores) {
       listaAutores.setAttribute("aria-busy", "false");
-      for (const id of ["buscar-autores", "atualizar-autores", "limpar-busca-autores"]) {
+      for (const id of ["atualizar-autores", "limpar-busca-autores"]) {
         document.querySelector(`#${id}`).disabled = false;
       }
     }
@@ -611,6 +613,16 @@ document.querySelector("#busca-autores").addEventListener("submit", async evento
   evento.preventDefault();
   await carregarAutores();
 });
+nomeAutor.addEventListener("input", () => {
+  clearTimeout(temporizadorBuscaAutores);
+  versaoBuscaAutores++; // Descarta respostas para textos anteriores durante a digitação.
+  document.querySelector("#tabela-autores").hidden = true;
+  document.querySelector("#quantidade-autores").textContent = "—";
+  mensagemAutores.classList.remove("error");
+  mensagemAutores.textContent = "Consultando autores…";
+  temporizadorBuscaAutores = setTimeout(carregarAutores, 300);
+});
+
 document.querySelector("#atualizar-autores").addEventListener("click", carregarAutores);
 document.querySelector("#limpar-busca-autores").addEventListener("click", async () => {
   nomeAutor.value = "";

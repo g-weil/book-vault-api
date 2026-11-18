@@ -13,7 +13,13 @@ from sqlalchemy import select, text
 from sqlalchemy.engine import Engine
 
 from database import Base, bloquear_escrita, criar_engine
-import models  # Registra as cinco tabelas e suas dependências.
+import models  # Registra os modelos; a ferramenta copia somente o legado SQLite.
+
+
+TABELAS_LEGADO = tuple(
+    table for table in Base.metadata.sorted_tables
+    if table.name in {"autores", "generos", "livros", "livros_autores", "livros_generos"}
+)
 
 
 def ler_registros(backup: Path) -> dict[str, list[dict]]:
@@ -24,7 +30,12 @@ def ler_registros(backup: Path) -> dict[str, list[dict]]:
         if source.execute("PRAGMA foreign_key_check").fetchall():
             raise ValueError("O SQLite possui relacionamentos inválidos; corrija antes da cópia.")
         registros = {}
-        for table in Base.metadata.sorted_tables:
+        # Não descartar silenciosamente contas ou bibliotecas de um SQLite novo.
+        existentes = {row[0] for row in source.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for nome in ("usuarios", "biblioteca_usuario"):
+            if nome in existentes and source.execute(f'SELECT 1 FROM "{nome}" LIMIT 1').fetchone():
+                raise ValueError("Este importador legado não transfere contas ou bibliotecas multiusuário.")
+        for table in TABELAS_LEGADO:
             # Identificadores vêm dos modelos do projeto, nunca da entrada do usuário.
             colunas = {row[1] for row in source.execute(f'PRAGMA table_info("{table.name}")')}
             esperadas = {column.name for column in table.columns}
@@ -43,7 +54,7 @@ def ler_registros(backup: Path) -> dict[str, list[dict]]:
 
 
 def conferir_registros(connection, registros: dict[str, list[dict]]) -> None:
-    for table in Base.metadata.sorted_tables:
+    for table in TABELAS_LEGADO:
         consulta = select(table).order_by(*table.primary_key.columns)
         recebidos = [
             {key: value.value if isinstance(value, Enum) else value for key, value in row.items()}
@@ -87,16 +98,16 @@ def migrar_sqlite(origem: Path, destino: Engine, diretorio_backup: Path) -> dict
             registros = ler_registros(backup)
             with destino.begin() as connection:
                 bloquear_escrita(connection)
-                Base.metadata.create_all(bind=connection)
-                nomes = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
+                Base.metadata.create_all(bind=connection, tables=TABELAS_LEGADO)
+                nomes = ", ".join(f'"{table.name}"' for table in TABELAS_LEGADO)
                 connection.exec_driver_sql(f"LOCK TABLE {nomes} IN EXCLUSIVE MODE")
-                for table in Base.metadata.sorted_tables:
+                for table in TABELAS_LEGADO:
                     if connection.execute(select(table).limit(1)).first() is not None:
                         raise ValueError(
                             f"Destino não está vazio ({table.name}). Nada será sobrescrito. "
                             "O backup SQLite foi preservado."
                         )
-                for table in Base.metadata.sorted_tables:
+                for table in TABELAS_LEGADO:
                     if registros[table.name]:
                         connection.execute(table.insert(), registros[table.name])
                 conferir_registros(connection, registros)

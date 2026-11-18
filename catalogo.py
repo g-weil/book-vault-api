@@ -23,6 +23,7 @@ GENEROS_FIXOS = (
     "Negócios e economia",
     "Artes e cultura",
     "Interesses e vida prática",
+    "Outros",
 )
 
 

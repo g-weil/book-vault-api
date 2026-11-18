@@ -7,7 +7,7 @@
   <title>Minha biblioteca · Book Vault</title>
   <link rel="icon" href="/static/livro.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/styles.css?v=9">
-  <script src="/static/app.js?v=10" defer></script>
+  <script src="/static/app.js?v=11" defer></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -53,10 +53,9 @@
       <p id="notificacao-autores" class="notification" role="status" aria-live="polite" hidden></p>
       <form id="busca-autores" class="author-search" role="search" aria-label="Buscar autores">
         <div class="author-search-field"><label for="nome-autor">Nome do autor</label><input id="nome-autor" name="nome" type="search" placeholder="Digite parte do nome, como Tolkien" aria-describedby="ajuda-busca-autores"></div>
-        <button id="buscar-autores" type="submit" class="button-primary">Buscar</button>
         <button id="limpar-busca-autores" type="button" class="button-secondary">Mostrar todos</button>
       </form>
-      <p id="ajuda-busca-autores" class="field-help">Busque por parte do nome ou deixe em branco para listar todos. Autores sem livros vinculados também aparecem aqui.</p>
+      <p id="ajuda-busca-autores" class="field-help">Digite parte do nome para buscar automaticamente ou deixe em branco para listar todos. Enter antecipa a busca. Autores sem livros vinculados também aparecem aqui.</p>
       <p id="mensagem-autores" class="feedback" role="status" aria-live="polite"></p>
       <div class="author-table-wrap"><table id="tabela-autores" class="author-table" hidden><caption class="sr-only">Autores encontrados</caption><thead><tr><th scope="col">ID</th><th scope="col">Nome do autor</th><th scope="col">Ações</th></tr></thead><tbody id="lista-autores" aria-busy="false"></tbody></table></div>
     </section>
